@@ -567,22 +567,33 @@ def process_directory(directory: str, state: Dict[str, Any]) -> List[Dict[str, A
         useobsdate = state['useobsdate']
         dp = state['dp']
 
+        from concurrent.futures import as_completed
+
         with ProcessPoolExecutor() as executor:
-            # Map returns an iterator that preserves order
-            results = executor.map(worker_process_header, 
-                                   file_paths, 
-                                   [defaults] * len(file_paths), 
-                                   [override] * len(file_paths),
-                                   [[]] * len(file_paths), # wanted_keys placeholder
-                                   [useobsdate] * len(file_paths),
-                                   [dp] * len(file_paths))
+            # Use submit and as_completed for real-time progress feedback
+            futures = [executor.submit(worker_process_header, 
+                                     fp, 
+                                     defaults, 
+                                     override,
+                                     [], # wanted_keys placeholder
+                                     useobsdate,
+                                     dp) for fp in file_paths]
             
-            for header in results:
-                if header:
-                    dir_headers.append(header)
-                    logger.debug(f"Processed header") # Can't log filename easily here without tracking
-                else:
-                    logger.warning(f"No valid header found") # Can't log filename easily
+            total_files = len(futures)
+            for i, future in enumerate(as_completed(futures), 1):
+                try:
+                    header = future.result()
+                    if header:
+                        dir_headers.append(header)
+                    
+                    # Real-time console feedback for the scanning phase
+                    print(f"\rScanning files: {i} of {total_files}...", end="", flush=True)
+                except Exception as e:
+                    logger.error(f"Worker generated an exception: {e}")
+
+        if total_files > 0:
+            print() # Move to new line after progress counter
+            print() # Extra line space for readability
 
         # Log number of headers extracted
         logger.info(f"Extracted {len(dir_headers)} headers from directory {directory}")
@@ -1640,7 +1651,8 @@ def get_HFR(df: pd.DataFrame, state: Dict[str, Any]) -> pd.DataFrame:
                 logger.error(f"Error processing HFR for index {index} ({file_path}): {str(e)}")
 
         if total_frames > 0:
-            print() # New line after progress counter
+            print() # Move to new line after progress counter
+            print() # Extra line space for readability
 
         # Update state with processed frame count
         state['number_of_images_processed'] = counter
