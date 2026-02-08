@@ -6,7 +6,7 @@ import numpy as np
 import logging
 from constants import FITSKeywords, InternalNames, ImageTypes, StandardizedKeys, ConfigKeys
 
-processing_version = '1.4.6'
+processing_version = '1.4.7'
 
 # Changes:
 # Date: Thursday 25th September 2024
@@ -349,64 +349,51 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
 
 
-        # Custom Overnight Date Shifting
-
-        # If USEOBSDATE is False, we group frames taken after midnight with the previous day's session
-
-        # to ensure the whole night of imaging is counted under a single date.
-
+        # Custom Overnight Date Shifting (Vectorized)
         if not state['headers_state']['useobsdate']:
-
-            logger.info("Use observation date is False. Proceeding with custom date handling")
-
+            logger.info("Use observation date is False. Proceeding with custom date handling (Vectorized)")
             try:
-
-                threshold = pd.Timedelta(hours=5)
-
+                # Ensure date-obs is sorted
                 df = df.sort_values(by=StandardizedKeys.DATE_OBS, ascending=True).reset_index(drop=True)
+                
+                # Calculate time differences
+                time_diff = df[StandardizedKeys.DATE_OBS].diff()
+                
+                # Identify session breaks (diff > 5 hours)
+                # First row is always a start (fillna(False) effectively, but cumsum handles it)
+                threshold = pd.Timedelta(hours=5)
+                session_change = time_diff > threshold
+                session_ids = session_change.cumsum()
+                
+                # Define helper to calculate reference date for a session start time
+                def get_ref_date(ts):
+                    midnight = pd.Timestamp("00:00:00").time()
+                    midday = pd.Timestamp("12:00:00").time()
+                    if midnight < ts.time() < midday:
+                        return (ts - timedelta(days=1)).date()
+                    return ts.date()
 
-                logger.info("Sorted DataFrame by 'date-obs'")
-
-                df.loc[:, 'new-date-obs'] = df[StandardizedKeys.DATE_OBS]
-
-                ref_datetime = df[StandardizedKeys.DATE_OBS][0]
-
-                midnight = pd.Timestamp("00:00:00").time()
-
-                midday = pd.Timestamp("12:00:00").time()
-
-                ref_date = ref_datetime.date() - timedelta(days=1) if midnight < ref_datetime.time() < midday else ref_datetime.date()
-
-                logger.info(f"Reference date set to: {ref_date}")
-
-                for n in range(1, len(df[StandardizedKeys.DATE_OBS])):
-
-                    current_date = df[StandardizedKeys.DATE_OBS][n]
-
-                    previous_date = df[StandardizedKeys.DATE_OBS][n-1]
-
-                    date_diff = current_date - previous_date
-
-                    logger.debug(f"Processing row {n}: current_date={current_date}, previous_date={previous_date}, date_diff={date_diff}")
-
-                    if date_diff > threshold:
-
-                        ref_date = current_date.date()
-
-                        logger.info(f"Date difference ({date_diff}) exceeded threshold. Updated reference date to {ref_date}")
-
-                    df.loc[n, 'new-date-obs'] = ref_date
-
-                    logger.debug(f"Updated 'new-date-obs' for row {n} to {ref_date}")
-
+                # Calculate reference date for each session group
+                # transform('first') gives us the start time of the session for every row
+                session_start_times = df.groupby(session_ids)[StandardizedKeys.DATE_OBS].transform('first')
+                
+                # Apply the reference date logic to these start times
+                # applying a python function is still O(N) but N is number of rows. 
+                # Since the logic depends on the specific time of day, apply is acceptable here 
+                # or we can vectorize the condition too.
+                # Vectorized condition:
+                # mask = (session_start_times.dt.time > midnight) & (session_start_times.dt.time < midday)
+                # This requires constructing midnight/midday objects comparable to the series.
+                # Let's stick to a simple apply on the start times series which is fast enough.
+                
+                df['new-date-obs'] = session_start_times.apply(get_ref_date)
+                            
                 df = df.drop(columns=[StandardizedKeys.DATE_OBS], errors='ignore')
-
                 df = df.rename(columns={'new-date-obs': StandardizedKeys.DATE_OBS})
-
-                logger.info("Replaced original 'date-obs' with updated values")
-
+                
+                logger.info("Replaced original 'date-obs' with updated values (Vectorized)")
+                
             except Exception as e:
-
                 logger.error(f"Error in custom date handling: {e}")
 
 

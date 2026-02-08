@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Tuple
 from configobj import ConfigObj
 from constants import ConfigKeys, FITSKeywords
 
-config_version = '1.4.6'
+config_version = '1.4.7'
 #
 # Date: Sunday 1st February 2026
 # Modification : v1.4.2 Restoration & Logic Overhaul.

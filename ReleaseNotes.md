@@ -1,17 +1,20 @@
-# Release Notes - AstroBin Upload Utility v1.4.6
+# Release Notes - AstroBin Upload Utility v1.4.7
 
 ## Overview
-Version 1.4.6 is a major architectural refinement release focused on project stability, maintainability, and data resiliency. By eliminating "magic strings" and hardening numeric processing, this release ensures the utility is more robust than ever against varied and malformed astronomical metadata.
+Version 1.4.7 is a milestone release that delivers a complete architectural modernization of the AstroBin Upload Utility. By moving to a centralized pipeline architecture and implementing vectorized data processing, this version provides unparalleled speed, stability, and maintainability.
 
 ## Key Highlights
 
-### 🛡️ Architectural Hardening
-- **Elimination of Magic Strings**: Introduced `constants.py` to centralize all FITS keywords and internal column names. This structural change prevents silent logic failures caused by typos and ensures project-wide consistency.
-- **Robust Numeric Processing**: Upgraded the data pipeline to use centralized numeric hardening. The utility now intelligently handles non-numeric or malformed data in critical fields like GAIN, EGAIN, and coordinates, using `pd.to_numeric` with safe fallbacks.
+### 🚀 Vectorized Performance
+- **Instantaneous Aggregation**: Replaced iterative row-by-row logic with optimized Pandas operations. Processing hundreds of images now occurs in milliseconds, specifically tuned for high-speed RAID 0 and multi-session workflows.
 
-### 🛠 Fixes & Enhancements
-- **Resilient Data Conversion**: Improved the type conversion engine to automatically fall back to `config.ini` defaults if FITS header data is invalid or missing, preventing aggregation crashes.
-- **Standardized Internal Naming**: Synchronized all internal data structures to ensure perfect alignment between configuration, processing, and output modules.
+### 🛡️ Architectural Hardening
+- **Pipeline Manager**: Introduced the `AstroBinProcessor` class to cleanly orchestrate the extraction, conditioning, and aggregation phases. This modular design makes the utility more reliable and easier to extend.
+- **Elimination of Magic Strings**: Centralized all metadata keywords into a dedicated `constants.py` module, preventing silent logic failures and ensuring project-wide consistency.
+
+### 🛠️ Data Resiliency
+- **Robust Numeric Handling**: Standardized the use of `pd.to_numeric` with safe fallbacks. The utility now intelligently handles malformed FITS headers or non-standard metadata without crashing.
+- **Improved Overnight Logic**: Refined session grouping logic to better handle imaging runs that cross the midnight boundary.
 
 ## Installation & Usage
 Always use the provided virtual environment:
