@@ -110,6 +110,8 @@ def main():
     # Flow the state through the pipeline and generate final reports
     state = SessionState(config=config, raw_df=raw_df)
     state = processor.run(state)
+    
+    print(f"DEBUG: Unique types in processed_df: {state.processed_df['imagetyp'].unique().tolist()}")
 
     output_basename = os.path.basename(args.directory_paths[0]).replace(" ", "_")
     exporter = Exporter(logger)

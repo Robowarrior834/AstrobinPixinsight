@@ -187,13 +187,26 @@ def generate_full_summary(df: pd.DataFrame, logger: logging.Logger, total_scanne
         report.append(get_observation_period(lights, logger))
         
         # Sequentially process and format each Image Type section
-        order = [ImageType.LIGHT.value, ImageType.FLAT.value, ImageType.MASTER_FLAT.value, ImageType.BIAS.value, ImageType.DARK.value]
+        order = [
+            ImageType.LIGHT.value, 
+            ImageType.FLAT.value, ImageType.MASTER_FLAT.value, 
+            ImageType.BIAS.value, ImageType.MASTER_BIAS.value,
+            ImageType.DARK.value, ImageType.MASTER_DARK.value,
+            ImageType.DARK_FLAT.value, ImageType.MASTER_DARKFLAT.value
+        ]
+        
+        # Check for any variations like 'MasterLight' or 'Master Light' if they exist in the DB but not in our enum
+        unique_itypes = site_group[InternalColumns.IMAGE_TYPE].unique()
+        
         for itype in order:
-            if itype in site_group[InternalColumns.IMAGE_TYPE].unique():
-                table, exp = format_image_type_table(site_group, itype, logger)
-                if table:
-                    report.append(table)
-                    report.append(f"\nTotal {itype} Exposure Time: {seconds_to_hms(exp, logger)}\n")
+            # Case-insensitive match to handle 'DARK' vs 'Dark'
+            matches = [u for u in unique_itypes if str(u).upper() == itype.upper()]
+            if matches:
+                for actual_type in matches:
+                    table, exp = format_image_type_table(site_group, actual_type, logger)
+                    if table:
+                        report.append(table)
+                        report.append(f"\nTotal {itype} Exposure Time: {seconds_to_hms(exp, logger)}\n")
                     
     report.append(f"\n Total number of images processed: {total_scanned}\n")
     return "\n".join(report)

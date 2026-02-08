@@ -7,6 +7,7 @@ applying hardware overrides, and hardening numeric types.
 
 import pandas as pd
 import numpy as np
+import logging
 from models import SessionState
 from constants import FITSKeywords, InternalColumns, ImageType, ConfigSections
 
@@ -15,20 +16,11 @@ class NormalizeHeadersStep:
     Sanitizes raw FITS/XISF metadata into a standardized internal format.
     """
     def execute(self, state: SessionState) -> SessionState:
-        """
-        Executes the normalization sequence.
-        
-        Steps:
-        1. Apply hardware overrides from config.ini.
-        2. Inject missing columns from defaults.
-        3. Standardize column names to lowercase.
-        4. Normalize IMAGETYP strings (e.g., 'Light Frame' -> 'LIGHT').
-        5. Convert strings to proper numeric types (float/int).
-        """
         df = state.raw_df.copy()
         config = state.config
+        logger = logging.getLogger("AstroBinV2")
 
-        # 1. Apply Overrides: Map custom hardware keywords to internal variables
+        # 1. Apply Overrides
         for internal_key, hw_keys in config.overrides.items():
             for hw_key in hw_keys:
                 matching_cols = [c for c in df.columns if c.upper() == hw_key.upper()]
@@ -37,30 +29,50 @@ class NormalizeHeadersStep:
                     if internal_key not in df.columns:
                         df[internal_key] = df[source]
                     else:
-                        # Use fillna to merge data if the internal key partially exists
                         df[internal_key] = df[internal_key].fillna(df[source])
-                    # Cleanup: Remove the non-standard source column
                     if source != internal_key:
                         df.drop(columns=[source], inplace=True)
                     break
 
-        # 2. Inject Defaults: Populate missing mandatory columns with config values
+        # 2. Inject Defaults
         for k, v in config.defaults.items():
             if k not in df.columns:
                 df[k] = v
 
-        # 3. Standardize column names: Move to lowercase for consistent internal processing
+        # 3. Standardize column names to lowercase for Internal processing
         df.columns = [c.lower() for c in df.columns]
         
-        # 4. IMAGETYP Normalization: Standardize various naming styles to 'LIGHT'
+        # 4. IMAGETYP Normalization
         itype_col = InternalColumns.IMAGE_TYPE
         if itype_col in df.columns:
-            df[itype_col] = df[itype_col].astype(str)
-            mask = (df[itype_col].str.contains('light', case=False, na=False) & 
-                   ~df[itype_col].str.contains('master', case=False, na=False))
-            df.loc[mask, itype_col] = ImageType.LIGHT.value
+            # Force all to upper for logic matching
+            df[itype_col] = df[itype_col].astype(str).str.upper()
+            
+            # Hard filter: Drop 'MASTERLIGHT' or 'MASTER LIGHT' completely
+            mask_drop = df[itype_col].str.contains('MASTERLIGHT', case=False, na=False) | \
+                        df[itype_col].str.contains('MASTER LIGHT', case=False, na=False) | \
+                        (df[itype_col] == 'NAN')
+            
+            df = df[~mask_drop].copy()
 
-        # 5. Initialize/Harden Core Columns: Ensure numeric reliability for math operations
+            # Normalization Map (Substring matching)
+            type_map = {
+                'LIGHT': ImageType.LIGHT.value,
+                'FLAT': ImageType.FLAT.value,
+                'DARK': ImageType.DARK.value,
+                'BIAS': ImageType.BIAS.value,
+                'MASTERFLAT': ImageType.MASTER_FLAT.value,
+                'MASTERDARK': ImageType.MASTER_DARK.value,
+                'MASTERBIAS': ImageType.MASTER_BIAS.value,
+                'MASTERDARKFLAT': ImageType.MASTER_DARKFLAT.value,
+                'DARKFLAT': ImageType.DARK_FLAT.value
+            }
+            
+            for keyword, normalized in sorted(type_map.items(), key=lambda x: len(x[0]), reverse=True):
+                mask = df[itype_col].str.contains(keyword, case=False, na=False)
+                df.loc[mask, itype_col] = normalized
+
+        # 5. Initialize/Harden Core Columns
         core_columns = {
             InternalColumns.GAIN: 0,
             InternalColumns.EGAIN: 1.0,
@@ -86,7 +98,6 @@ class NormalizeHeadersStep:
             if col not in df.columns:
                 df[col] = default
             else:
-                # Force numeric conversion with 'coerce' to handle 'No Data' or string garbage
                 if col in [InternalColumns.GAIN, InternalColumns.EGAIN, InternalColumns.DURATION, 
                           InternalColumns.SENSOR_COOLING, InternalColumns.FOCAL_LENGTH, 
                           InternalColumns.F_NUMBER, InternalColumns.PIXEL_SIZE, 

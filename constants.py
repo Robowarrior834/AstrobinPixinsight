@@ -1,19 +1,10 @@
 """
-Constants Module - AstroBin Upload Utility v2.0.0
-
-This module serves as the single source of truth for all string literals, 
-FITS keywords, and internal data structures. By using typed constants, 
-we eliminate "magic strings," preventing typo-related bugs and ensuring 
-project-wide consistency.
+Centralized constants for AstroBin Upload Utility v2.0.0.
 """
 
 from enum import Enum
 
 class FITSKeywords:
-    """
-    Standard FITS and XISF header keywords used by capture software 
-    (N.I.N.A, SGP, Voyager, etc.).
-    """
     IMAGE_TYPE = 'IMAGETYP'
     EXPOSURE = 'EXPOSURE'
     DATE_OBS = 'DATE-OBS'
@@ -46,7 +37,6 @@ class FITSKeywords:
     IMSCALE = 'IMSCALE'
 
 class ConfigSections:
-    """Top-level section headers used in config.ini."""
     DEFAULTS = 'defaults'
     OVERRIDE = 'override'
     FILTERS = 'filters'
@@ -54,10 +44,6 @@ class ConfigSections:
     SECRET = 'secret'
 
 class InternalColumns:
-    """
-    Standardized internal column names used within the Pandas DataFrames 
-    after normalization and aggregation.
-    """
     IMAGE_TYPE = 'imagetyp' 
     DURATION = 'exposure'
     BINNING = 'xbinning'
@@ -97,21 +83,19 @@ class InternalColumns:
     GAIN_MATCH = 'gain_match'
 
 class ImageType(str, Enum):
-    """
-    Enumeration of supported astronomical image types.
-    Ensures that type-checking logic is robust and centralized.
-    """
+    """Normalized Image Type values."""
     LIGHT = 'LIGHT'
     FLAT = 'FLAT'
     BIAS = 'BIAS'
     DARK = 'DARK'
+    MASTER_LIGHT = 'MASTERLIGHT'
     MASTER_FLAT = 'MASTERFLAT'
     MASTER_DARK = 'MASTERDARK'
     MASTER_BIAS = 'MASTERBIAS'
     MASTER_DARKFLAT = 'MASTERDARKFLAT'
     DARK_FLAT = 'DARKFLAT'
 
-# Backward compatibility aliases for legacy utility support
+# Backward compatibility aliases
 InternalNames = InternalColumns
 StandardizedKeys = InternalColumns 
 ImageTypes = ImageType

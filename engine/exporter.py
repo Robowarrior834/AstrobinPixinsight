@@ -2,14 +2,15 @@
 Data Exporter - AstroBin Upload Utility v2.0.0
 
 Responsible for generating the final user-facing artifacts:
-1. The AstroBin-compatible Acquisition CSV.
-2. The detailed human-readable Session Summary.
+1. The AstroBin-compatible Acquisition CSV (LIGHTS only).
+2. The detailed human-readable Session Summary (All types).
 """
 
 import os
 import pandas as pd
 import logging
 from models import SessionState
+from constants import ImageType
 
 class Exporter:
     """
@@ -21,23 +22,21 @@ class Exporter:
     def export(self, state: SessionState, output_basename: str, output_dir: str):
         """
         Generates and saves the final output files.
-        
-        Args:
-            state (SessionState): The fully processed and aggregated data.
-            output_basename (str): The base name for files (derived from directory).
-            output_dir (str): The target path for exports.
         """
         df = state.aggregated_df.copy()
         if df.empty:
             self.logger.warning("Export requested but data is empty.")
             return
 
-        # 1. Map Filter Names to codes (e.g., 'Ha' -> 4663)
-        # Uses the [filters] section from config.ini
-        filter_dict = state.config.filters
-        df['filter_code'] = df['filter'].apply(lambda x: filter_dict.get(str(x).strip(), x))
+        # 1. Filter for Acquisition CSV (LIGHTS ONLY)
+        # The AstroBin acquisition table strictly expects light frames.
+        acq_source = df[df['imagetyp'] == ImageType.LIGHT.value].copy()
 
-        # 2. Map Internal Column Names to AstroBin CSV Standards
+        # 2. Map Filter Names to codes
+        filter_dict = state.config.filters
+        acq_source['filter_code'] = acq_source['filter'].apply(lambda x: filter_dict.get(str(x).strip(), x))
+
+        # 3. Map Internal Column Names to AstroBin CSV Standards
         mapping = {
             'session_date': 'date',
             'filter_code': 'filter',
@@ -57,10 +56,10 @@ class Exporter:
             'foctemp': 'temperature'
         }
         
-        # Select and rename columns in one pass to prevent duplication
-        acq_df = df[list(mapping.keys())].rename(columns=mapping)
+        # Select and rename columns
+        acq_df = acq_source[list(mapping.keys())].rename(columns=mapping)
         
-        # Final Rounding: Ensures AstroBin CSV compatibility
+        # Final Rounding
         acq_df = acq_df.round({
             'duration': 2, 'sensorCooling': 0, 'fNumber': 2, 
             'meanSqm': 2, 'meanFwhm': 2, 'temperature': 2
@@ -71,7 +70,7 @@ class Exporter:
         acq_df.to_csv(output_csv_path, index=False)
         self.logger.info(f"Acquisition CSV saved: {output_csv_path}")
 
-        # 3. Generate Human-Readable Summary
+        # 4. Generate Human-Readable Summary (Full DF including CALS)
         from engine.reports import generate_full_summary
         summary = generate_full_summary(df, self.logger, len(state.raw_df))
         
