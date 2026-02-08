@@ -6,6 +6,7 @@ import sys
 import logging
 from geopy.geocoders import Nominatim
 from typing import Tuple, Optional, Dict
+from constants import StandardizedKeys, InternalNames, ConfigKeys, FITSKeywords
 #
 # Date: Sunday 1st February 2026
 # Modification : v1.4.2 Restoration & Logic Overhaul.
@@ -39,9 +40,9 @@ def initialize_sites(headers_state: Dict, logger: logging.Logger) -> Dict:
 
     try:
         # Extract email address from configuration for geolocator user agent
-        email_address = headers_state['config']['secret']['EMAIL_ADDRESS'].strip()
+        email_address = headers_state['config'][ConfigKeys.SECRET]['EMAIL_ADDRESS'].strip()
         # Create DataFrame from existing sites in configuration for high-speed local lookup.
-        existing_sites_df = pd.DataFrame(headers_state['config']['sites'])
+        existing_sites_df = pd.DataFrame(headers_state['config'][ConfigKeys.SITES])
         logger.info("Existing sites DataFrame created")
     except Exception as e:
         # Fallback to an empty DataFrame if no 'sites' section exists yet.
@@ -324,7 +325,7 @@ def process_new_location(lat_long_pair: Tuple[float, float], api_key: str, api_e
             raise ValueError("API key and endpoint must be strings")
 
         # Initialize with default site name from configuration
-        location_str = headers_state['config']['defaults']['SITE']
+        location_str = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE]
         try:
             # Check if geolocator is initialized
             if geolocator is None:
@@ -344,23 +345,23 @@ def process_new_location(lat_long_pair: Tuple[float, float], api_key: str, api_e
                 logger.warning(f"API error: {error_msg}")
             if bortle == 0 and sqm == 0:
                 # Use default values if API returns zeros
-                bortle = headers_state['config']['defaults']['BORTLE']
-                sqm = headers_state['config']['defaults']['SQM']
+                bortle = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.BORTLE]
+                sqm = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]
                 logger.warning(f"Bortle and SQM returned 0, using defaults: Bortle {bortle}, SQM {sqm}")
             logger.info(f"Processed new location: {location_str}, Bortle: {bortle}, SQM: {sqm}")
         except Exception as e:
             # Handle geocoding errors and fall back to default values
             logger.warning(f"Geocoding error: {str(e)}. Using default site information")
-            logger.info(f"Default location: {headers_state['config']['defaults']['SITE']}, "
-                       f"Bortle: {headers_state['config']['defaults']['BORTLE']}, "
-                       f"SQM: {headers_state['config']['defaults']['SQM']}")
-            location_str = headers_state['config']['defaults']['SITE']
+            logger.info(f"Default location: {headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE]}, "
+                       f"Bortle: {headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.BORTLE]}, "
+                       f"SQM: {headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]}")
+            location_str = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE]
             lat_long_pair = (
-                round(float(headers_state['config']['defaults']['SITELAT']), headers_state['dp']),
-                round(float(headers_state['config']['defaults']['SITELONG']), headers_state['dp'])
+                round(float(headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE_LAT]), headers_state['dp']),
+                round(float(headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE_LONG]), headers_state['dp'])
             )
-            bortle = headers_state['config']['defaults']['BORTLE']
-            sqm = headers_state['config']['defaults']['SQM']
+            bortle = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.BORTLE]
+            sqm = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]
 
         # Return processed location data
         return lat_long_pair, location_str, bortle, sqm
@@ -370,9 +371,9 @@ def process_new_location(lat_long_pair: Tuple[float, float], api_key: str, api_e
         logger.error(f"Error processing new location: {str(e)}")
         return (
             lat_long_pair,
-            headers_state['config']['defaults']['SITE'],
-            headers_state['config']['defaults']['BORTLE'],
-            headers_state['config']['defaults']['SQM']
+            headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE],
+            headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.BORTLE],
+            headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]
         )
 
 def save_new_location(location_str: str, bortle: int, sqm: float, lat_long_pair: Tuple[float, float], state: Dict) -> None:
@@ -408,12 +409,12 @@ def save_new_location(location_str: str, bortle: int, sqm: float, lat_long_pair:
         keys_values = {'latitude': lat_long_pair[0], 'longitude': lat_long_pair[1], 'bortle': bortle, 'sqm': sqm}
         # Import and call update_config to save new location
         from config_functions import update_config
-        update_config(headers_state['config'], 'sites', location_str, keys_values, logger)
+        update_config(headers_state['config'], ConfigKeys.SITES, location_str, keys_values, logger)
         logger.info(f"Saved new site: {location_str} with Latitude {lat_long_pair[0]}, "
                    f"Longitude {lat_long_pair[1]}, Bortle: {bortle}, SQM: {sqm}")
 
         # Update existing sites DataFrame
-        state['existing_sites_df'] = pd.DataFrame(headers_state['config']['sites'])
+        state['existing_sites_df'] = pd.DataFrame(headers_state['config'][ConfigKeys.SITES])
         logger.info(f"Updated existing sites DataFrame: {state['existing_sites_df'].to_dict()}")
 
     except Exception as e:
@@ -609,41 +610,34 @@ def get_site_data(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
         for index, row in df.iterrows():
             try:
 
-                if not (is_valid_coordinate(row['SITELAT']) and is_valid_coordinate(row['SITELONG'])):
+                if not (is_valid_coordinate(row[FITSKeywords.SITE_LAT]) and is_valid_coordinate(row[FITSKeywords.SITE_LONG])):
                     logger.info(f"No valid numeric coordinates for row {index}, using default values")
                     state['location_info'] = None
-                    site = headers_state['config']['defaults']['SITE']
-                    bortle = headers_state['config']['defaults']['BORTLE']
+                    site = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE]
+                    bortle = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.BORTLE]
                     # Check if SQM is 0 or empty
-                    logger.info(f"SQM value for row {index} is {row['SQM']}")
-                    if pd.isna(row['SQM']) or row['SQM'] == 0 or row['SQM'] == "":
-                        sqm = headers_state['config']['defaults']['SQM']
+                    logger.info(f"SQM value for row {index} is {row[FITSKeywords.SQM]}")
+                    if pd.isna(row[FITSKeywords.SQM]) or row[FITSKeywords.SQM] == 0 or row[FITSKeywords.SQM] == "":
+                        sqm = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]
                     else:
                         # This case should not occur since location_info is None, logging for clarity
-                        logger.warning(f"Unexpected SQM value {row['SQM']} with no valid coordinates")
-                        sqm = row['SQM']
-
-                # Check if coordinates are empty
-                #logger.info(f"SITELAT = {row['SITELAT']}, SITELONG = {row['SITELONG']}")
-                #if pd.isna(row['SITELAT']) or pd.isna(row['SITELONG']):
-                #    logger.info(f"No coordinates for row {index}, using default values")
-                #    state['location_info'] = None
-                #    site = headers_state['config']['defaults']['SITE']
-                #    bortle = headers_state['config']['defaults']['BORTLE']
-                #    # Check if SQM is 0 or empty
-                #    if pd.isna(row['SQM']) or row['SQM'] == 0:
-                #        sqm = headers_state['config']['defaults']['SQM']
-                #    else:
-                #        # This case should not occur since location_info is None, logging for clarity
-                #        logger.warning(f"Unexpected SQM value {row['SQM']} with no coordinates")
-                #        sqm = headers_state['config']['defaults']['SQM']
+                        logger.warning(f"Unexpected SQM value {row[FITSKeywords.SQM]} with no valid coordinates")
+                        sqm = row[FITSKeywords.SQM]
                 else:
                     # Round latitude and longitude to match configuration precision
-                    lat_long_pair = (round(row['SITELAT'], headers_state['dp']),
-                                   round(row['SITELONG'], headers_state['dp']))
+                    sitelat = pd.to_numeric(row[FITSKeywords.SITE_LAT], errors='coerce')
+                    sitelong = pd.to_numeric(row[FITSKeywords.SITE_LONG], errors='coerce')
+                    
+                    if pd.isna(sitelat) or pd.isna(sitelong):
+                        logger.warning(f"Non-numeric coordinates for row {index}, using defaults")
+                        sitelat = float(headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE_LAT])
+                        sitelong = float(headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE_LONG])
+
+                    lat_long_pair = (round(sitelat, headers_state['dp']),
+                                   round(sitelong, headers_state['dp']))
                     # Round to one decimal place for matching
-                    r_lat_long_pair = (np.ceil(row['SITELAT'] * 10) / 10,
-                                     np.ceil(row['SITELONG'] * 10) / 10)
+                    r_lat_long_pair = (np.ceil(sitelat * 10) / 10,
+                                     np.ceil(sitelong * 10) / 10)
 
                     # Check if location is new
                     if is_new_location(est, lat_long_pair, logger):
@@ -656,8 +650,8 @@ def get_site_data(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
                         # Update coordinates if defaults were used
                         if lat_long_pair_return != lat_long_pair:
                             logger.warning("Default site used instead of given lat_long_pair")
-                            df.at[index, 'SITELAT'] = lat_long_pair_return[0]
-                            df.at[index, 'SITELONG'] = lat_long_pair_return[1]
+                            df.at[index, FITSKeywords.SITE_LAT] = lat_long_pair_return[0]
+                            df.at[index, FITSKeywords.SITE_LONG] = lat_long_pair_return[1]
                             lat_long_pair = lat_long_pair_return
 
                         logger.info(f"New location: {location_str}, Bortle: {bortle}, SQM: {sqm}")
@@ -679,28 +673,28 @@ def get_site_data(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
                     if state['location_info'] is None:
                         logger.error(f"No location found in ['sites'] for lat_long_pair: {lat_long_pair}")
                         logger.info("Using default site information")
-                        site = headers_state['config']['defaults']['SITE']
-                        bortle = headers_state['config']['defaults']['BORTLE']
-                        sqm = headers_state['config']['defaults']['SQM']
+                        site = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE]
+                        bortle = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.BORTLE]
+                        sqm = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]
                     else:
                         site = state['location_info'].index[0]
-                        bortle = state['location_info']['bortle'].iloc[0]
+                        bortle = state['location_info'][FITSKeywords.BORTLE.lower()].iloc[0]
                         # Check if SQM is 0 or empty
-                        if pd.isna(row['SQM']) or row['SQM'] == 0:
-                            sqm = headers_state['config']['defaults']['SQM']
+                        if pd.isna(row[FITSKeywords.SQM]) or row[FITSKeywords.SQM] == 0:
+                            sqm = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]
                         else:
-                            sqm = state['location_info']['sqm'].iloc[0]
+                            sqm = state['location_info'][FITSKeywords.SQM.lower()].iloc[0]
 
-                df.at[index, 'BORTLE'] = bortle
-                df.at[index, 'SQM'] = sqm
-                df.at[index, 'SITE'] = site
+                df.at[index, FITSKeywords.BORTLE] = bortle
+                df.at[index, FITSKeywords.SQM] = sqm
+                df.at[index, FITSKeywords.SITE] = site
 
             except Exception as e:
                 # Handle errors for individual rows and use default values
                 logger.error(f"Error processing row {index} for site data: {str(e)}")
-                df.at[index, 'BORTLE'] = headers_state['config']['defaults']['BORTLE']
-                df.at[index, 'SQM'] = headers_state['config']['defaults']['SQM']
-                df.at[index, 'SITE'] = headers_state['config']['defaults']['SITE']
+                df.at[index, FITSKeywords.BORTLE] = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.BORTLE]
+                df.at[index, FITSKeywords.SQM] = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SQM]
+                df.at[index, FITSKeywords.SITE] = headers_state['config'][ConfigKeys.DEFAULTS][FITSKeywords.SITE]
 
         logger.info("Completed site data retrieval")
         return df

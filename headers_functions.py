@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 from typing import Dict, Any
 from concurrent.futures import ProcessPoolExecutor
+from constants import FITSKeywords, ConfigKeys, InternalNames, ImageTypes
 #
 # Date: Sunday 1st February 2026
 # Modification : v1.4.2 Restoration & Logic Overhaul.
@@ -106,7 +107,7 @@ def initialize_headers(config: ConfigObj, logger: logging.Logger, dp: int) -> Di
             'header': {},
             'headers': pd.DataFrame(),
             'headers_reduced': [],
-            'useobsdate': config['defaults'].get('USEOBSDATE', 'TRUE').lower() != 'false'
+            'useobsdate': config[ConfigKeys.DEFAULTS].get(ConfigKeys.USE_OBS_DATE, 'TRUE').lower() != 'false'
         }
         # Log useobsdate setting for debugging
         logger.debug(f"Headers state initialized: useobsdate={headers_state['useobsdate']}")
@@ -219,8 +220,8 @@ def xml_to_data(xml_header: str, logger: logging.Logger) -> Optional[Tuple[Dict[
                 header[name] = value
                 # Extract SWCREATE from PixInsight comment
                 if 'Integration with PixInsight' in comment:
-                    header['SWCREATE'] = ' '.join(comment.split()[2:])
-                    logger.debug(f"Extracted SWCREATE from comment: {header['SWCREATE']}")
+                    header[FITSKeywords.SWCREATE] = ' '.join(comment.split()[2:])
+                    logger.debug(f"Extracted SWCREATE from comment: {header[FITSKeywords.SWCREATE]}")
 
         # Extract number of images from processing history
         property_elem = root.find(".//xisf:Property[@id='PixInsight:ProcessingHistory']", namespaces=ns)
@@ -239,7 +240,7 @@ def xml_to_data(xml_header: str, logger: logging.Logger) -> Optional[Tuple[Dict[
                 logger.error("Failed to parse nested XML in ProcessingHistory")
         else:
             # Check if it is a master frame before warning
-            imagetyp = header.get('IMAGETYP', '').upper()
+            imagetyp = header.get(FITSKeywords.IMAGE_TYPE, '').upper()
             if 'MASTER' in imagetyp:
                 logger.warning("No PixInsight:ProcessingHistory property found")
             else:
@@ -295,13 +296,13 @@ def get_number_of_FIT_cal_frames(header: Dict[str, Any], logger: logging.Logger)
         for line in history_lines:
             if 'Integration with PixInsight' in line:
                 # Extract SWCREATE from PixInsight integration comment
-                header['SWCREATE'] = ' '.join(line.split()[2:])
-                logger.debug(f"Found SWCREATE in HISTORY: {header['SWCREATE']}")
+                header[FITSKeywords.SWCREATE] = ' '.join(line.split()[2:])
+                logger.debug(f"Found SWCREATE in HISTORY: {header[FITSKeywords.SWCREATE]}")
             if 'ImageIntegration.numberOfImages:' in line:
                 try:
                     # Extract number of images from HISTORY
                     number = int(line.split()[-1])
-                    header['NUMBER'] = number
+                    header[FITSKeywords.NUMBER] = number
                     logger.debug(f"Found {number} calibration frames in HISTORY")
                 except ValueError as e:
                     # Log error if number parsing fails
@@ -337,7 +338,7 @@ def clean_object_column(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFram
         if not isinstance(logger, logging.Logger):
             raise ValueError("logger must be a logging.Logger instance")
         # Check for required columns
-        required_columns = {'IMAGETYP', 'OBJECT'}
+        required_columns = {FITSKeywords.IMAGE_TYPE, FITSKeywords.OBJECT}
         if not required_columns.issubset(df.columns):
             missing = required_columns - set(df.columns)
             raise ValueError(f"Missing required columns: {missing}")
@@ -348,18 +349,18 @@ def clean_object_column(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFram
         df = df.copy()
         # Process each row
         for i in df.index:
-            if df.loc[i, 'IMAGETYP'] == 'LIGHT':
+            if df.loc[i, FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT:
                 try:
                     # Split OBJECT name on spaces or underscores
-                    parts = re.split(r'\s|_', str(df.loc[i, 'OBJECT']))
+                    parts = re.split(r'\s|_', str(df.loc[i, FITSKeywords.OBJECT]))
                     # Remove empty parts and strip whitespace
                     parts = [part.strip() for part in parts if part]
                     # If last part is numeric, insert 'Panel' before it
                     if len(parts) >= 3 and parts[-1].isdigit():
                         parts[-2] = 'Panel'
                     # Join parts back into cleaned OBJECT name
-                    df.loc[i, 'OBJECT'] = ' '.join(parts)
-                    logger.debug(f"Cleaned OBJECT for index {i}: {df.loc[i, 'OBJECT']}")
+                    df.loc[i, FITSKeywords.OBJECT] = ' '.join(parts)
+                    logger.debug(f"Cleaned OBJECT for index {i}: {df.loc[i, FITSKeywords.OBJECT]}")
                 except Exception as e:
                     # Log error for individual row processing
                     logger.error(f"Error cleaning OBJECT for index {i}: {str(e)}")
@@ -405,14 +406,14 @@ def process_headers(file_path: str, state: Dict[str, Any]) -> Optional[Dict[str,
         # Initialize number of images to 1 (default for non-master files)
         state['number'] = 1
         # Define wanted keys from config defaults and additional mandatory tracking keys
-        state['wanted_keys'] = list(config['defaults'].keys()) + ['FILENAME', 'NUMBER']
+        state['wanted_keys'] = list(config[ConfigKeys.DEFAULTS].keys()) + [FITSKeywords.FILENAME, FITSKeywords.NUMBER]
         
         # USEOBSDATE override logic
-        if config['defaults'].get('USEOBSDATE', 'TRUE').lower() == 'false':
+        if config[ConfigKeys.DEFAULTS].get(ConfigKeys.USE_OBS_DATE, 'TRUE').lower() == 'false':
             logger.debug("USEOBSDATE is set to False")
             state['useobsdate'] = False
-            if 'USEOBSDATE' in state['wanted_keys']:
-                state['wanted_keys'].remove('USEOBSDATE')
+            if ConfigKeys.USE_OBS_DATE in state['wanted_keys']:
+                state['wanted_keys'].remove(ConfigKeys.USE_OBS_DATE)
                 logger.debug("Removed USEOBSDATE from wanted_keys")
 
         state['header_filename'] = os.path.basename(file_path)
@@ -456,19 +457,19 @@ def process_headers(file_path: str, state: Dict[str, Any]) -> Optional[Dict[str,
             return None
 
         # Basic Validation
-        if 'IMAGETYP' not in hdr:
+        if FITSKeywords.IMAGE_TYPE not in hdr:
             logger.warning(f"IMAGETYP key not found in header for {file_path}")
             return None
         
         # Hard Filter: Drop 'master light' frames.
         # These are final integrated images and contain no useful session-level metadata.
-        if 'master light' in hdr['IMAGETYP'].lower():
+        if 'master light' in hdr[FITSKeywords.IMAGE_TYPE].lower():
             logger.debug(f"Dropping header for {file_path} as it contains 'master light' in IMAGETYP")
             return None
 
         # Normalize IMAGETYP for LIGHT frames: Standardizes 'Light Frame', 'LIGHTFRAME', etc. to 'LIGHT'.
-        if 'light' in hdr['IMAGETYP'].lower():
-            hdr['IMAGETYP'] = 'LIGHT'
+        if 'light' in hdr[FITSKeywords.IMAGE_TYPE].lower():
+            hdr[FITSKeywords.IMAGE_TYPE] = ImageTypes.LIGHT
             logger.debug("Converted IMAGETYP to LIGHT")
         
         #replaced code
@@ -546,8 +547,8 @@ def process_directory(directory: str, state: Dict[str, Any]) -> List[Dict[str, A
 
         # Prepare args for parallel processing
         # Convert ConfigObj sections to dicts to ensure picklability across environments
-        defaults = dict(state['config']['defaults'])
-        override = dict(state['config']['override'])
+        defaults = dict(state['config'][ConfigKeys.DEFAULTS])
+        override = dict(state['config'][ConfigKeys.OVERRIDE])
         
         # Note: wanted_keys might not be fully populated in state if process_headers hasn't run yet, 
         # but initialize_headers doesn't set it. process_headers sets it locally. 
@@ -626,7 +627,7 @@ def apply_light_values(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame
         if not isinstance(logger, logging.Logger):
             raise ValueError("logger must be a logging.Logger instance")
         # Check for required columns
-        required_columns = {'IMAGETYP', 'SITE', 'SITELAT', 'SITELONG'}
+        required_columns = {FITSKeywords.IMAGE_TYPE, FITSKeywords.SITE, FITSKeywords.SITE_LAT, FITSKeywords.SITE_LONG}
         if not required_columns.issubset(df.columns):
             missing = required_columns - set(df.columns)
             raise ValueError(f"Missing required columns: {missing}")
@@ -636,12 +637,12 @@ def apply_light_values(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame
         # Create a copy to avoid modifying the input DataFrame
         df = df.copy()
         # Check for LIGHT frames
-        if not df[df['IMAGETYP'] == 'LIGHT'].empty:
+        if not df[df[FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT].empty:
             # Get site data from first LIGHT frame
-            light_row = df[df['IMAGETYP'] == 'LIGHT'].iloc[0]
-            site, sitelat, sitelong = light_row['SITE'], light_row['SITELAT'], light_row['SITELONG']
+            light_row = df[df[FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT].iloc[0]
+            site, sitelat, sitelong = light_row[FITSKeywords.SITE], light_row[FITSKeywords.SITE_LAT], light_row[FITSKeywords.SITE_LONG]
             # Apply site data to non-LIGHT frames
-            df.loc[df['IMAGETYP'] != 'LIGHT', ['SITE', 'SITELAT', 'SITELONG']] = site, sitelat, sitelong
+            df.loc[df[FITSKeywords.IMAGE_TYPE] != ImageTypes.LIGHT, [FITSKeywords.SITE, FITSKeywords.SITE_LAT, FITSKeywords.SITE_LONG]] = site, sitelat, sitelong
             logger.info("Applied LIGHT frame values to non-LIGHT frames")
         else:
             logger.warning("No LIGHT frames found to apply SITE, SITELAT, SITELONG")
@@ -848,8 +849,8 @@ def condition_headers(headers: List[Dict[str, Any]], state: Dict[str, Any]) -> p
         # Ensure all columns from [defaults] are present in the DataFrame.
         # This is critical for both recursive FITS scans and --test CSV mode,
         # ensuring the aggregator (aggregate_parameters) doesn't crash on missing columns.
-        if 'defaults' in config:
-            for key, default_value in config['defaults'].items():
+        if ConfigKeys.DEFAULTS in config:
+            for key, default_value in config[ConfigKeys.DEFAULTS].items():
                 if key not in headers_df.columns:
                     headers_df[key] = default_value
                     logger.info(f"Injected missing column '{key}' with default value '{default_value}'")
@@ -862,8 +863,8 @@ def condition_headers(headers: List[Dict[str, Any]], state: Dict[str, Any]) -> p
         # Step 0: Apply [override] mappings.
         # This ensures that hardware-specific keys (like AOCAMBT) are mapped to 
         # internal keys (like FOCTEMP) as defined in the config.
-        if 'override' in config:
-            for internal_key, hardware_keys in config['override'].items():
+        if ConfigKeys.OVERRIDE in config:
+            for internal_key, hardware_keys in config[ConfigKeys.OVERRIDE].items():
                 if isinstance(hardware_keys, str):
                     hw_keys = [k.strip() for k in hardware_keys.split(',')]
                 else:
@@ -888,20 +889,20 @@ def condition_headers(headers: List[Dict[str, Any]], state: Dict[str, Any]) -> p
                         break
 
         # Check for IMAGETYP column (essential for all downstream logic)
-        if 'IMAGETYP' not in headers_df.columns:
+        if FITSKeywords.IMAGE_TYPE not in headers_df.columns:
             logger.error("IMAGETYP column missing in headers DataFrame")
             return headers_df
 
         # Step 0: Normalize IMAGETYP for LIGHT frames.
         # Rule: If IMAGETYP contains the string 'light' (case-insensitive) AND does NOT contain 
         # the string 'master' (case-insensitive), convert the value to exactly 'LIGHT'.
-        if 'IMAGETYP' in headers_df.columns:
-            mask = (headers_df['IMAGETYP'].str.contains('light', case=False, na=False) & 
-                    ~headers_df['IMAGETYP'].str.contains('master', case=False, na=False))
-            headers_df.loc[mask, 'IMAGETYP'] = 'LIGHT'
+        if FITSKeywords.IMAGE_TYPE in headers_df.columns:
+            mask = (headers_df[FITSKeywords.IMAGE_TYPE].str.contains('light', case=False, na=False) & 
+                    ~headers_df[FITSKeywords.IMAGE_TYPE].str.contains('master', case=False, na=False))
+            headers_df.loc[mask, FITSKeywords.IMAGE_TYPE] = ImageTypes.LIGHT
 
         # Check for LIGHT frames: If no lights are found, the session is considered invalid.
-        if 'LIGHT' not in headers_df['IMAGETYP'].values:
+        if ImageTypes.LIGHT not in headers_df[FITSKeywords.IMAGE_TYPE].values:
             logger.warning("No LIGHT frames found in headers")
             return headers_df
         
@@ -922,7 +923,7 @@ def condition_headers(headers: List[Dict[str, Any]], state: Dict[str, Any]) -> p
         headers_df = filter_and_remove_duplicates(headers_df, logger)
 
         # Step 4: Normalization
-        headers_df['IMAGETYP'] = headers_df['IMAGETYP'].str.upper()
+        headers_df[FITSKeywords.IMAGE_TYPE] = headers_df[FITSKeywords.IMAGE_TYPE].str.upper()
         logger.info("Converted IMAGETYP to uppercase")
 
         # Step 5: Gain Handshake
@@ -932,10 +933,13 @@ def condition_headers(headers: List[Dict[str, Any]], state: Dict[str, Any]) -> p
 
         # Step 6: GAIN Defaulting
         # Handles cases where GAIN was reported as -1 (signaling no data).
-        headers_df.loc[headers_df['EGAIN'] == -1, 'EGAIN'] = config['defaults']['EGAIN']
-        headers_df['EGAIN'] = headers_df['EGAIN'].abs()
-        headers_df.loc[headers_df['GAIN'] == -1, 'GAIN'] = config['defaults']['GAIN']
-        headers_df['GAIN'] = headers_df['GAIN'].abs()
+        headers_df[FITSKeywords.EGAIN] = pd.to_numeric(headers_df[FITSKeywords.EGAIN], errors='coerce').fillna(config[ConfigKeys.DEFAULTS][FITSKeywords.EGAIN])
+        headers_df.loc[headers_df[FITSKeywords.EGAIN] == -1, FITSKeywords.EGAIN] = config[ConfigKeys.DEFAULTS][FITSKeywords.EGAIN]
+        headers_df[FITSKeywords.EGAIN] = headers_df[FITSKeywords.EGAIN].abs()
+
+        headers_df[FITSKeywords.GAIN] = pd.to_numeric(headers_df[FITSKeywords.GAIN], errors='coerce').fillna(config[ConfigKeys.DEFAULTS][FITSKeywords.GAIN])
+        headers_df.loc[headers_df[FITSKeywords.GAIN] == -1, FITSKeywords.GAIN] = config[ConfigKeys.DEFAULTS][FITSKeywords.GAIN]
+        headers_df[FITSKeywords.GAIN] = headers_df[FITSKeywords.GAIN].abs()
         logger.info("Set GAIN to absolute value and applied defaults for negative gains")
 
         # Step 7: Optical Parameter Extraction
@@ -953,6 +957,21 @@ def condition_headers(headers: List[Dict[str, Any]], state: Dict[str, Any]) -> p
         # Normalizes target names (e.g. 'M 31' vs 'M31') for consistent grouping.
         headers_df = clean_object_column(headers_df, logger)
         logger.info("Cleaned OBJECT column")
+
+        # Step 10: Numeric Hardening
+        # Ensures all columns intended for mathematical aggregation are proper numeric types.
+        numeric_cols = [
+            FITSKeywords.CCD_TEMP, FITSKeywords.FOCAL_RATIO, FITSKeywords.FOCUSER_TEMP,
+            FITSKeywords.FOCAL_LENGTH, FITSKeywords.BORTLE, FITSKeywords.SQM,
+            FITSKeywords.HFR, FITSKeywords.PIXEL_SIZE, FITSKeywords.EGAIN,
+            FITSKeywords.GAIN, FITSKeywords.IMSCALE, FITSKeywords.FWHM,
+            FITSKeywords.SITE_LAT, FITSKeywords.SITE_LONG, FITSKeywords.ROTATOR_ANGLE
+        ]
+        for col in numeric_cols:
+            if col in headers_df.columns:
+                headers_df[col] = pd.to_numeric(headers_df[col], errors='coerce').fillna(config[ConfigKeys.DEFAULTS].get(col, 0))
+        logger.info("Hardened numeric columns for aggregation")
+
         return headers_df
 
     except Exception as e:
@@ -981,7 +1000,7 @@ def modify_lat_long(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
         if not isinstance(logger, logging.Logger):
             raise ValueError("logger must be a logging.Logger instance")
         # Check for required columns
-        required_columns = {'IMAGETYP', 'SITELAT', 'SITELONG'}
+        required_columns = {FITSKeywords.IMAGE_TYPE, FITSKeywords.SITE_LAT, FITSKeywords.SITE_LONG}
         if not required_columns.issubset(df.columns):
             missing = required_columns - set(df.columns)
             raise ValueError(f"Missing required columns: {missing}")
@@ -991,28 +1010,28 @@ def modify_lat_long(df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:
         # Create a copy to avoid modifying the input DataFrame
         df = df.copy()
         # Extract LIGHT frames
-        light_df = df[df['IMAGETYP'] == 'LIGHT'].copy()
+        light_df = df[df[FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT].copy()
         if light_df.empty:
             logger.warning("No LIGHT frames found for lat/long alignment")
             return df
 
         # Convert coordinates to float for distance calculation
-        light_df['SITELAT'] = light_df['SITELAT'].astype(float)
-        light_df['SITELONG'] = light_df['SITELONG'].astype(float)
+        light_df[FITSKeywords.SITE_LAT] = light_df[FITSKeywords.SITE_LAT].astype(float)
+        light_df[FITSKeywords.SITE_LONG] = light_df[FITSKeywords.SITE_LONG].astype(float)
 
         # Process non-LIGHT frames
-        for i, row in df[df['IMAGETYP'] != 'LIGHT'].iterrows():
+        for i, row in df[df[FITSKeywords.IMAGE_TYPE] != ImageTypes.LIGHT].iterrows():
             try:
                 # Convert current row’s coordinates to float
-                sitelat = float(row['SITELAT'])
-                sitelong = float(row['SITELONG'])
+                sitelat = float(row[FITSKeywords.SITE_LAT])
+                sitelong = float(row[FITSKeywords.SITE_LONG])
                 # Calculate Euclidean distances to LIGHT frames
-                distances = np.sqrt((light_df['SITELAT'] - sitelat) ** 2 + (light_df['SITELONG'] - sitelong) ** 2)
+                distances = np.sqrt((light_df[FITSKeywords.SITE_LAT] - sitelat) ** 2 + (light_df[FITSKeywords.SITE_LONG] - sitelong) ** 2)
                 # Find index of closest LIGHT frame
                 closest_light_index = distances.idxmin()
                 # Update coordinates
-                df.loc[i, 'SITELAT'] = light_df.loc[closest_light_index, 'SITELAT']
-                df.loc[i, 'SITELONG'] = light_df.loc[closest_light_index, 'SITELONG']
+                df.loc[i, FITSKeywords.SITE_LAT] = light_df.loc[closest_light_index, FITSKeywords.SITE_LAT]
+                df.loc[i, FITSKeywords.SITE_LONG] = light_df.loc[closest_light_index, FITSKeywords.SITE_LONG]
                 logger.debug(f"Aligned lat/long for index {i} to LIGHT frame at index {closest_light_index}")
             except (ValueError, TypeError) as e:
                 # Log error for individual row processing
@@ -1057,70 +1076,51 @@ def reduce_headers(hdr: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]
         # Log start of header reduction
         logger.debug("Reducing headers")
 
-        for fits_keyword, hdr_keyword in config['override'].items():
-            # Handle case where hdr_keyword is a list
-            if isinstance(hdr_keyword, list):
-                for key in hdr_keyword:
-                    if key in hdr:
-                        hdr[fits_keyword] = hdr[key]
-                        logger.debug(f"Mapped {key} to {fits_keyword}")
-            # Handle case where hdr_keyword is a single string
-            elif hdr_keyword in hdr:
-                hdr[fits_keyword] = hdr[hdr_keyword]
-                logger.debug(f"Mapped {hdr_keyword} to {fits_keyword}")
+        if ConfigKeys.OVERRIDE in config:
+            for fits_keyword, hdr_keyword in config[ConfigKeys.OVERRIDE].items():
+                # Handle case where hdr_keyword is a list
+                if isinstance(hdr_keyword, list):
+                    for key in hdr_keyword:
+                        if key in hdr:
+                            hdr[fits_keyword] = hdr[key]
+                            logger.debug(f"Mapped {key} to {fits_keyword}")
+                # Handle case where hdr_keyword is a single string
+                elif hdr_keyword in hdr:
+                    hdr[fits_keyword] = hdr[hdr_keyword]
+                    logger.debug(f"Mapped {hdr_keyword} to {fits_keyword}")
                 
-        # Map alternative keys to standard keys
-        #if 'CREATOR' in hdr:
-        #    hdr['SWCREATE'] = hdr['CREATOR']
-        #    logger.debug("Mapped CREATOR to SWCREATE")
-        #if 'EXPTIME' in hdr and hdr['EXPTIME'] != 'No Data':
-        #    hdr['EXPOSURE'] = hdr['EXPTIME']
-        #    logger.debug("Mapped EXPTIME to EXPOSURE")
         if 'LAT-OBS' in hdr and hdr['LAT-OBS'] != 'No Data':
-            hdr['SITELAT'] = hdr['LAT-OBS']
-            hdr['SITELONG'] = hdr['LONG-OBS']
-            hdr['FWHM'] = 0
+            hdr[FITSKeywords.SITE_LAT] = hdr['LAT-OBS']
+            hdr[FITSKeywords.SITE_LONG] = hdr['LONG-OBS']
+            hdr[FITSKeywords.FWHM] = 0
             logger.debug("Mapped LAT-OBS and LONG-OBS for master frame")
-        #if 'SITENAME' in hdr:
-        #    hdr['SITE'] = hdr['SITENAME']
-        #    logger.debug("Mapped SITENAME to SITE")
-        #if 'FOCUSER' in hdr:
-        #    hdr['FOCNAME'] = hdr['FOCUSER']
-        #    logger.debug("Mapped FOCUSER to FOCNAME")
-        if 'IMAGETYP' in hdr:
+
+        if FITSKeywords.IMAGE_TYPE in hdr:
             # Normalize IMAGETYP by removing spaces and converting to uppercase
-            hdr['IMAGETYP'] = hdr['IMAGETYP'].replace(' ', '').upper()
-            logger.debug(f"Normalized IMAGETYP to {hdr['IMAGETYP']}")
-        if 'FILENAME' not in hdr:
+            hdr[FITSKeywords.IMAGE_TYPE] = hdr[FITSKeywords.IMAGE_TYPE].replace(' ', '').upper()
+            logger.debug(f"Normalized IMAGETYP to {hdr[FITSKeywords.IMAGE_TYPE]}")
+        if FITSKeywords.FILENAME not in hdr:
             # Set FILENAME from state if missing
-            hdr['FILENAME'] = state['header_filename']
+            hdr[FITSKeywords.FILENAME] = state['header_filename']
             logger.debug(f"Set FILENAME to {state['header_filename']}")
         # Set NUMBER from state
-        hdr['NUMBER'] = state['number']
+        hdr[FITSKeywords.NUMBER] = state['number']
         logger.debug(f"Set NUMBER to {state['number']}")
-        if 'INSTRUME' in hdr:
+        if FITSKeywords.INSTRUMENT in hdr:
             # Convert INSTRUME to uppercase
-            hdr['INSTRUME'] = hdr['INSTRUME'].upper()
-            logger.debug(f"Normalized INSTRUME to {hdr['INSTRUME']}")
+            hdr[FITSKeywords.INSTRUMENT] = hdr[FITSKeywords.INSTRUMENT].upper()
+            logger.debug(f"Normalized INSTRUME to {hdr[FITSKeywords.INSTRUMENT]}")
         # Set default GAIN and EGAIN if missing
-        hdr.setdefault('GAIN', -1)
-        hdr.setdefault('EGAIN', 1)
+        hdr.setdefault(FITSKeywords.GAIN, -1)
+        hdr.setdefault(FITSKeywords.EGAIN, 1)
         logger.debug("Applied default GAIN and EGAIN if missing")
         # Remove quotes from string values
         hdr = {k: v.strip('"').strip("'") if isinstance(v, str) else v for k, v in hdr.items()}
         logger.debug("Removed quotes from string values")
         
-        # Replace empty SITELAT and SITELONG with config['defaults'] values
-        #if 'SITELAT' in hdr and hdr['SITELAT'] == '':
-        #    hdr['SITELAT'] = config['defaults'].get('SITELAT', '')
-        #    logger.debug(f"Replaced empty SITELAT with config['defaults']['SITELAT']: {hdr['SITELAT']}")
-        #if 'SITELONG' in hdr and hdr['SITELONG'] == '':
-        #    hdr['SITELONG'] = config['defaults'].get('SITELONG', '')
-        #    logger.debug(f"Replaced empty SITELONG with config['defaults']['SITELONG']: {hdr['SITELONG']}")
-
         logger.debug(f"Reduced header before limiting to wanted keys: {hdr}")
         # Reduce header to wanted keys, using defaults if missing
-        reduced_hdr = {k: hdr.get(k, config['defaults'].get(k, '')) for k in state['wanted_keys'] if k in config['defaults'] or k in ['FILENAME', 'NUMBER']}
+        reduced_hdr = {k: hdr.get(k, config[ConfigKeys.DEFAULTS].get(k, '')) for k in state['wanted_keys'] if k in config[ConfigKeys.DEFAULTS] or k in [FITSKeywords.FILENAME, FITSKeywords.NUMBER]}
         logger.debug(f"Reduced header to wanted keys: {reduced_hdr}")
         
         # Convert data types
@@ -1157,17 +1157,17 @@ def filter_and_remove_duplicates(headers_df: pd.DataFrame, logger: logging.Logge
         # Create a copy to avoid modifying the input DataFrame
         headers_df = headers_df.copy()
         # Remove masterlight frames
-        headers_df = headers_df[headers_df['IMAGETYP'] != 'masterlight']
+        headers_df = headers_df[headers_df[FITSKeywords.IMAGE_TYPE] != 'masterlight']
 
         # Check for required columns
-        required_columns = {'FILENAME', 'IMAGETYP'}
+        required_columns = {FITSKeywords.FILENAME, FITSKeywords.IMAGE_TYPE}
         if not required_columns.issubset(headers_df.columns):
             missing = required_columns - set(headers_df.columns)
             logger.error(f"Missing required columns: {missing}")
             return headers_df
 
         # Extract base filename without calibration postfixes. Updated 2025-9-26 to make the selection case insensitive
-        headers_df['base_filename'] = headers_df['FILENAME'].str.extract(r'(.+?)(?:_c.*)?(\.xisf|\.fits|\.fit|\.fts)', flags=re.IGNORECASE)[0]
+        headers_df['base_filename'] = headers_df[FITSKeywords.FILENAME].str.extract(r'(.+?)(?:_c.*)?(\.xisf|\.fits|\.fit|\.fts)', flags=re.IGNORECASE)[0]
         
         #headers_df['base_filename'] = headers_df['FILENAME'].str.extract(r'(.+?)(?:_c.*)?(\.xisf|\.fits|\.fit|\.fts)')[0]
         
@@ -1253,31 +1253,31 @@ def deal_with_calibration_frames(df: pd.DataFrame, state: Dict[str, Any]) -> pd.
         df = df.copy()
 
         # Check for required columns
-        required_columns = {'IMAGETYP', 'EXPOSURE'}
+        required_columns = {FITSKeywords.IMAGE_TYPE, FITSKeywords.EXPOSURE}
         if not required_columns.issubset(df.columns):
             missing = required_columns - set(df.columns)
             logger.error(f"Missing required columns: {missing}")
             return df
 
         # Convert IMAGETYP to lowercase for consistency
-        df['IMAGETYP'] = df['IMAGETYP'].str.lower()
+        df[FITSKeywords.IMAGE_TYPE] = df[FITSKeywords.IMAGE_TYPE].str.lower()
         # Get unique exposures for LIGHT and dark frames
-        light_exposures = df[df['IMAGETYP'] == 'light']['EXPOSURE'].unique()
-        dark_exposures = df[df['IMAGETYP'].str.contains('dark', case=False)]['EXPOSURE'].unique()
+        light_exposures = df[df[FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT.lower()][FITSKeywords.EXPOSURE].unique()
+        dark_exposures = df[df[FITSKeywords.IMAGE_TYPE].str.contains('dark', case=False)][FITSKeywords.EXPOSURE].unique()
 
         # Remove dark frames with exposures not matching LIGHT frames
         for exposure_value in dark_exposures:
             if exposure_value not in light_exposures:
                 logger.info(f"No light frame with exposure {exposure_value} found, dropping dark frames")
-                df = df[~(df['IMAGETYP'].str.contains('dark', case=False) & (df['EXPOSURE'] == exposure_value))]
+                df = df[~(df[FITSKeywords.IMAGE_TYPE].str.contains('dark', case=False) & (df[FITSKeywords.EXPOSURE] == exposure_value))]
 
         # Remove non-master calibration frames if master versions exist
-        master_types = ['masterbias', 'masterdark', 'masterflat', 'masterflatdark']
+        master_types = [ImageTypes.MASTER_BIAS.lower(), ImageTypes.MASTER_DARK.lower(), ImageTypes.MASTER_FLAT.lower(), ImageTypes.MASTER_DARKFLAT.lower()]
         for master_type in master_types:
-            if any(master_type in s.lower() for s in df['IMAGETYP']):
+            if any(master_type in s.lower() for s in df[FITSKeywords.IMAGE_TYPE]):
                 removeimgtype = master_type.replace("master", "")
                 logger.info(f"{master_type} found, removing {removeimgtype} frames")
-                df = df[df['IMAGETYP'] != removeimgtype]
+                df = df[df[FITSKeywords.IMAGE_TYPE] != removeimgtype]
 
         logger.info("Completed calibration frame processing")
         return df
@@ -1321,44 +1321,44 @@ def deal_with_flat_frames(df: pd.DataFrame, state: Dict[str, Any]) -> pd.DataFra
         df = df.copy()
 
         # Check for required columns
-        required_columns = {'IMAGETYP', 'FILTER'}
+        required_columns = {FITSKeywords.IMAGE_TYPE, FITSKeywords.FILTER}
         if not required_columns.issubset(df.columns):
             missing = required_columns - set(df.columns)
             logger.error(f"Missing required columns: {missing}")
             return df
 
         # Convert IMAGETYP to lowercase for consistency
-        df['IMAGETYP'] = df['IMAGETYP'].str.lower()
+        df[FITSKeywords.IMAGE_TYPE] = df[FITSKeywords.IMAGE_TYPE].str.lower()
         # Get unique filters for LIGHT and flat frames
-        light_filters = df[df['IMAGETYP'] == 'light']['FILTER'].unique()
-        flat_filters = df[df['IMAGETYP'].str.contains('flat', case=False)]['FILTER'].unique()
+        light_filters = df[df[FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT.lower()][FITSKeywords.FILTER].unique()
+        flat_filters = df[df[FITSKeywords.IMAGE_TYPE].str.contains('flat', case=False)][FITSKeywords.FILTER].unique()
 
         # Remove flat frames with filters not matching LIGHT frames
         for filter_value in flat_filters:
             if filter_value not in light_filters:
                 logger.info(f"No light frame with filter {filter_value} found, dropping flat frames")
-                df = df[~(df['IMAGETYP'].str.contains('flat', case=False) & (df['FILTER'] == filter_value))]
+                df = df[~(df[FITSKeywords.IMAGE_TYPE].str.contains('flat', case=False) & (df[FITSKeywords.FILTER] == filter_value))]
 
         # Identify master flat filters
-        master_flat_filters = df[(df['IMAGETYP'].str.contains('master', case=False) & df['IMAGETYP'].str.contains('flat', case=False))]['FILTER'].unique()
+        master_flat_filters = df[(df[FITSKeywords.IMAGE_TYPE].str.contains('master', case=False) & df[FITSKeywords.IMAGE_TYPE].str.contains('flat', case=False))][FITSKeywords.FILTER].unique()
         for filter_value in master_flat_filters:
             logger.info(f"Master flat frame with filter {filter_value} found, dropping flat frames")
 
         # Remove non-master flat frames if master flats exist
         for filter_value in master_flat_filters:
-            df = df[~((df['IMAGETYP'] == 'flat') & (df['FILTER'] == filter_value))]
+            df = df[~((df[FITSKeywords.IMAGE_TYPE] == ImageTypes.FLAT.lower()) & (df[FITSKeywords.FILTER] == filter_value))]
 
         # Consolidate master flat frames by summing counts
-        master_flat_df = df[df['IMAGETYP'].str.contains('master', case=False) & df['IMAGETYP'].str.contains('flat', case=False)].copy()
+        master_flat_df = df[df[FITSKeywords.IMAGE_TYPE].str.contains('master', case=False) & df[FITSKeywords.IMAGE_TYPE].str.contains('flat', case=False)].copy()
         if not master_flat_df.empty:
             # Sum NUMBER for each filter
-            master_flat_df.loc[:, 'NUMBER'] = master_flat_df.groupby('FILTER')['NUMBER'].transform('sum')
+            master_flat_df.loc[:, FITSKeywords.NUMBER] = master_flat_df.groupby(FITSKeywords.FILTER)[FITSKeywords.NUMBER].transform('sum')
             # Remove duplicates, keeping one row per filter
-            master_flat_df = master_flat_df.drop_duplicates('FILTER')
+            master_flat_df = master_flat_df.drop_duplicates(FITSKeywords.FILTER)
             logger.info("Consolidated master flat frames")
 
         # Remove original master flat frames from DataFrame
-        df = df[~(df['IMAGETYP'].str.contains('master', case=False) & df['IMAGETYP'].str.contains('flat', case=False))]
+        df = df[~(df[FITSKeywords.IMAGE_TYPE].str.contains('master', case=False) & df[FITSKeywords.IMAGE_TYPE].str.contains('flat', case=False))]
         if not master_flat_df.empty:
             # Reintegrate consolidated master flat frames
             df = pd.concat([df, master_flat_df], ignore_index=True)
@@ -1428,33 +1428,32 @@ def check_and_convert_data_types(d: Dict[str, Any], state: Dict[str, Any]) -> Di
 
         # Define expected data types for header keys
         data_types = {
-            'IMAGETYP': str,
-            'EXPOSURE': float,
-            'DATE-OBS': str,
-            'XBINNING': int,
-            'GAIN': int,
-            'EGAIN': float,
-            'XPIXSZ': float,
-            'CCD-TEMP': float,
-            'FOCALLEN': int,
-            'FOCRATIO': float,
-            'FILTER': str,
-            'FOCTEMP': float,
-            'SWCREATE': str,
-            'HFR': float,
-            'FWHM': float,
-            'SITELAT': float,
-            'SITELONG': float,
-            'OBJECT': str,
-            'FILENAME': str,
-            'NUMBER': int,
-            'INSTRUME': str,
-            'SQM' : float,
-            'BORTLE': float,
-            'FOCTEMP': float,
-            'FWHEEL' : str,
-            'ROTNAME': str,
-            'ROTANTANG': float
+            FITSKeywords.IMAGE_TYPE: str,
+            FITSKeywords.EXPOSURE: float,
+            FITSKeywords.DATE_OBS: str,
+            FITSKeywords.XBINNING: int,
+            FITSKeywords.GAIN: int,
+            FITSKeywords.EGAIN: float,
+            FITSKeywords.PIXEL_SIZE: float,
+            FITSKeywords.CCD_TEMP: float,
+            FITSKeywords.FOCAL_LENGTH: int,
+            FITSKeywords.FOCAL_RATIO: float,
+            FITSKeywords.FILTER: str,
+            FITSKeywords.FOCUSER_TEMP: float,
+            FITSKeywords.SWCREATE: str,
+            FITSKeywords.HFR: float,
+            FITSKeywords.FWHM: float,
+            FITSKeywords.SITE_LAT: float,
+            FITSKeywords.SITE_LONG: float,
+            FITSKeywords.OBJECT: str,
+            FITSKeywords.FILENAME: str,
+            FITSKeywords.NUMBER: int,
+            FITSKeywords.INSTRUMENT: str,
+            FITSKeywords.SQM : float,
+            FITSKeywords.BORTLE: float,
+            FITSKeywords.FWHEEL : str,
+            FITSKeywords.ROTATOR_NAME: str,
+            FITSKeywords.ROTATOR_ANGLE: float
         }
 
         # Process each key
@@ -1464,7 +1463,7 @@ def check_and_convert_data_types(d: Dict[str, Any], state: Dict[str, Any]) -> Di
                 if isinstance(v, str):
                     # Remove quotes from string values
                     v = v.replace('"', '').strip("'")
-                    if key == 'DATE-OBS':
+                    if key == FITSKeywords.DATE_OBS:
                         try:
                             # Remove microseconds and format date
                             if '.' in v:
@@ -1473,7 +1472,7 @@ def check_and_convert_data_types(d: Dict[str, Any], state: Dict[str, Any]) -> Di
                             logger.debug(f"Formatted DATE-OBS: {v}")
                         except ValueError as e:
                             logger.error(f"Error formatting DATE-OBS {v}: {str(e)}")
-                    if key in ['SITELAT', 'SITELONG'] and ' ' in v:
+                    if key in [FITSKeywords.SITE_LAT, FITSKeywords.SITE_LONG] and ' ' in v:
                         # Convert DMS coordinates to decimal
                         v = dms_to_decimal(v)
 
@@ -1487,8 +1486,12 @@ def check_and_convert_data_types(d: Dict[str, Any], state: Dict[str, Any]) -> Di
                         d[key] = str(v)
                     logger.debug(f"Converted {key} to {expected_type.__name__}: {d[key]}")
                 except (ValueError, TypeError) as e:
-                    # Log error for type conversion
+                    # Log error for type conversion and fallback to default if available
                     logger.error(f"Error converting {key} to {expected_type.__name__}: {str(e)}")
+                    if key in config[ConfigKeys.DEFAULTS]:
+                        default_val = config[ConfigKeys.DEFAULTS][key]
+                        d[key] = default_val
+                        logger.info(f"Fell back to default value for {key}: {default_val}")
             else:
                 # Log missing key
                 logger.warning(f"Key {key} not found in dictionary")
@@ -1534,40 +1537,42 @@ def check_camera_gains(hdrs: pd.DataFrame, state: Dict[str, Any]) -> pd.DataFram
         hdrs = hdrs.copy()
 
         # Check for required columns
-        required_columns = {'INSTRUME', 'GAIN', 'EGAIN'}
+        required_columns = {FITSKeywords.INSTRUMENT, FITSKeywords.GAIN, FITSKeywords.EGAIN}
         if not required_columns.issubset(hdrs.columns):
             missing = required_columns - set(hdrs.columns)
             raise ValueError(f"Missing required columns: {missing}")
 
-        # Replace 'No Data' with 0 for GAIN
-        hdrs['GAIN'] = hdrs['GAIN'].replace('No Data', 0)
+        # Ensure GAIN and EGAIN are numeric to prevent comparison errors with strings
+        hdrs[FITSKeywords.GAIN] = pd.to_numeric(hdrs[FITSKeywords.GAIN], errors='coerce').fillna(0)
+        hdrs[FITSKeywords.EGAIN] = pd.to_numeric(hdrs[FITSKeywords.EGAIN], errors='coerce').fillna(1.0)
+
         # Get unique valid gain combinations
-        unique_df = hdrs[hdrs['GAIN'] >= 0][['INSTRUME', 'GAIN', 'EGAIN']].drop_duplicates()
-        logger.info(f"Unique cameras: {unique_df['INSTRUME'].unique()}")
-        logger.info(f"Unique gains: {unique_df['GAIN'].unique()}")
-        logger.info(f"Unique egains: {unique_df['EGAIN'].unique()}")
+        unique_df = hdrs[hdrs[FITSKeywords.GAIN] >= 0][[FITSKeywords.INSTRUMENT, FITSKeywords.GAIN, FITSKeywords.EGAIN]].drop_duplicates()
+        logger.info(f"Unique cameras: {unique_df[FITSKeywords.INSTRUMENT].unique()}")
+        logger.info(f"Unique gains: {unique_df[FITSKeywords.GAIN].unique()}")
+        logger.info(f"Unique egains: {unique_df[FITSKeywords.EGAIN].unique()}")
 
         # Apply default values for invalid or missing INSTRUME, GAIN, EGAIN
-        unique_df['INSTRUME'] = unique_df['INSTRUME'].apply(lambda x: config['defaults']['INSTRUME'] if pd.isna(x) or x == '' else x)
-        unique_df['EGAIN'] = unique_df['EGAIN'].apply(lambda x: config['defaults']['EGAIN'] if pd.isna(x) or x == '' or x < 0 else x)
-        unique_df['GAIN'] = unique_df['GAIN'].apply(lambda x: config['defaults']['GAIN'] if pd.isna(x) or x == '' or x < 0 else x)
+        unique_df[FITSKeywords.INSTRUMENT] = unique_df[FITSKeywords.INSTRUMENT].apply(lambda x: config[ConfigKeys.DEFAULTS][FITSKeywords.INSTRUMENT] if pd.isna(x) or x == '' else x)
+        unique_df[FITSKeywords.EGAIN] = unique_df[FITSKeywords.EGAIN].apply(lambda x: config[ConfigKeys.DEFAULTS][FITSKeywords.EGAIN] if pd.isna(x) or x == '' or x < 0 else x)
+        unique_df[FITSKeywords.GAIN] = unique_df[FITSKeywords.GAIN].apply(lambda x: config[ConfigKeys.DEFAULTS][FITSKeywords.GAIN] if pd.isna(x) or x == '' or x < 0 else x)
         logger.info("Applied default values for empty or invalid INSTRUME, GAIN, and EGAIN")
 
         # Define function to update GAIN based on EGAIN
         def update_gain(row):
             try:
-                if row['GAIN'] <= 0:
+                if row[FITSKeywords.GAIN] <= 0:
                     # Find matching EGAIN in unique_df
-                    match = unique_df[unique_df['EGAIN'] == row['EGAIN']]
+                    match = unique_df[unique_df[FITSKeywords.EGAIN] == row[FITSKeywords.EGAIN]]
                     if not match.empty:
-                        return match['GAIN'].iloc[0]
-                return row['GAIN']
+                        return match[FITSKeywords.GAIN].iloc[0]
+                return row[FITSKeywords.GAIN]
             except Exception as e:
                 logger.error(f"Error updating GAIN for row {row.name}: {str(e)}")
-                return row['GAIN']
+                return row[FITSKeywords.GAIN]
 
         # Apply gain updates
-        hdrs['GAIN'] = hdrs.apply(update_gain, axis=1)
+        hdrs[FITSKeywords.GAIN] = hdrs.apply(update_gain, axis=1)
         logger.info("Completed camera gain updates")
         return hdrs
 
@@ -1611,37 +1616,37 @@ def get_HFR(df: pd.DataFrame, state: Dict[str, Any]) -> pd.DataFrame:
         df = df.copy()
 
         # Check for required columns
-        required_columns = {'IMAGETYP', 'FILENAME', 'FOCALLEN', 'XPIXSZ'}
+        required_columns = {FITSKeywords.IMAGE_TYPE, FITSKeywords.FILENAME, FITSKeywords.FOCAL_LENGTH, FITSKeywords.PIXEL_SIZE}
         if not required_columns.issubset(df.columns):
             missing = required_columns - set(df.columns)
             raise ValueError(f"Missing required columns: {missing}")
 
         # Get default HFR from config
-        hfr_set = float(config['defaults']['HFR'])
+        hfr_set = float(config[ConfigKeys.DEFAULTS][FITSKeywords.HFR])
         # Count total LIGHT frames
-        total_frames = len(df[df['IMAGETYP'] == 'LIGHT'])
+        total_frames = len(df[df[FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT])
         counter = 0
 
         # Process each LIGHT frame
-        for index, row in df[df['IMAGETYP'] == 'LIGHT'].iterrows():
+        for index, row in df[df[FITSKeywords.IMAGE_TYPE] == ImageTypes.LIGHT].iterrows():
             try:
                 counter += 1
-                file_path = row['FILENAME']
+                file_path = row[FITSKeywords.FILENAME]
                 # Extract HFR from filename if present
                 hfr_match = re.search(r'HFR_([0-9.]+)', file_path)
                 hfr = float(hfr_match.group(1)) if hfr_match and float(hfr_match.group(1)) > 0 else hfr_set
                 # Convert focal length and pixel size to float
-                focal_length = float(row['FOCALLEN'])
-                pixel_size = float(row['XPIXSZ'])
+                focal_length = float(row[FITSKeywords.FOCAL_LENGTH])
+                pixel_size = float(row[FITSKeywords.PIXEL_SIZE])
                 # Calculate image scale (arcseconds per pixel)
                 imscale = pixel_size / focal_length * 206.265
                 # Calculate FWHM (arcseconds)
                 fwhm = hfr * imscale * 2 if hfr >= 0.0 else 0.0
 
                 # Update DataFrame with calculated values
-                df.loc[index, 'HFR'] = round(hfr, 2)
-                df.loc[index, 'IMSCALE'] = round(imscale, 2)
-                df.loc[index, 'FWHM'] = round(fwhm, 2)
+                df.loc[index, FITSKeywords.HFR] = round(hfr, 2)
+                df.loc[index, FITSKeywords.IMSCALE] = round(imscale, 2)
+                df.loc[index, FITSKeywords.FWHM] = round(fwhm, 2)
                 
                 # Real-time console feedback
                 print(f"\rProcessing LIGHT frame {counter} of {total_frames}...", end="", flush=True)
@@ -1656,8 +1661,8 @@ def get_HFR(df: pd.DataFrame, state: Dict[str, Any]) -> pd.DataFrame:
 
         # Update state with processed frame count
         state['number_of_images_processed'] = counter
-        logger.info(f"Completed HFR extraction: mean HFR={df['HFR'].mean():.2f}, "
-                   f"mean IMSCALE={df['IMSCALE'].mean():.2f}, mean FWHM={df['FWHM'].mean():.2f}")
+        logger.info(f"Completed HFR extraction: mean HFR={df[FITSKeywords.HFR].mean():.2f}, "
+                   f"mean IMSCALE={df[FITSKeywords.IMSCALE].mean():.2f}, mean FWHM={df[FITSKeywords.FWHM].mean():.2f}")
         return df
 
     except Exception as e:

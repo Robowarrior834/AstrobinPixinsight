@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.6] - 2026-02-08
+
+### Changed
+- **Project-Wide Refactoring**: Eliminated "magic strings" by introducing a centralized `constants.py` module. All FITS keywords, configuration labels, and internal column names are now managed via typed constants, significantly improving maintainability and reducing the risk of typo-related regressions.
+- **Robust Numeric Handling**: Implemented centralized numeric hardening for all critical observation parameters (Gain, Exposure, Temperatures, etc.) using `pd.to_numeric`. This ensures the utility gracefully handles malformed or non-standard FITS metadata.
+- **Improved Type Resiliency**: Enhanced data type conversion logic with fallback mechanisms that utilize project defaults from `config.ini` when header data fails validation.
+
+---
+
 ## [1.4.5] - 2026-02-07
 
 ### Added

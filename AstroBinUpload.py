@@ -11,6 +11,7 @@ from headers_functions import initialize_headers, process_directories
 from processing_functions import initialize_processing, aggregate_parameters, create_astrobin_output
 from sites_functions import initialize_sites, get_site_data
 from utils import initialise_logging, summarize_session, utils_version
+from constants import ConfigKeys, FITSKeywords, InternalNames
 
 
 # Changes:
@@ -47,7 +48,7 @@ from utils import initialise_logging, summarize_session, utils_version
 # Suppress all warnings
 warnings.filterwarnings("ignore")
 
-version = '1.4.5'
+version = '1.4.6'
 
 # Determine the script's directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -221,6 +222,10 @@ def main() -> None:
             headers_list = headers_df.to_dict('records')
             headers_df = condition_headers(headers_list, headers_state)
             basic_headers = headers_df.copy() # Placeholder for debug export
+            
+            if not headers_df.empty and FITSKeywords.IMAGE_TYPE in headers_df.columns:
+                light_count = len(headers_df[headers_df[FITSKeywords.IMAGE_TYPE] == 'LIGHT'])
+                logger.info(f"Number of 'LIGHT' frames (post-conditioning): {light_count}")
         else:
             # Standard Mode: Recursively scans provided directories for FITS/XISF files.
             headers_df, basic_headers = process_directories(directory_paths, headers_state)

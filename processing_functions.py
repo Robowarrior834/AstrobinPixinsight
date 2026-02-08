@@ -4,8 +4,9 @@ from dateutil.parser import parse
 from typing import Dict, Union
 import numpy as np
 import logging
+from constants import FITSKeywords, InternalNames, ImageTypes, StandardizedKeys, ConfigKeys
 
-processing_version = '1.4.5'
+processing_version = '1.4.6'
 
 # Changes:
 # Date: Thursday 25th September 2024
@@ -230,11 +231,11 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         # that Pandas 2.0 might have locked in during CSV injection.
 
-        if 'date-obs' in df.columns:
+        if StandardizedKeys.DATE_OBS in df.columns:
 
-            if not pd.api.types.is_datetime64_any_dtype(df['date-obs']):
+            if not pd.api.types.is_datetime64_any_dtype(df[StandardizedKeys.DATE_OBS]):
 
-                df['date-obs'] = df['date-obs'].astype(str)
+                df[StandardizedKeys.DATE_OBS] = df[StandardizedKeys.DATE_OBS].astype(str)
 
             
 
@@ -244,7 +245,7 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         threshold = timedelta(hours=5)
 
-        date_strings = df[df['imagetyp'] == 'LIGHT']['date-obs']
+        date_strings = df[df[StandardizedKeys.IMAGE_TYPE] == ImageTypes.LIGHT][StandardizedKeys.DATE_OBS]
 
         logger.info("Extracted date-obs from DataFrame")
 
@@ -298,29 +299,29 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         try:
 
-            df.loc[:, 'sessions'] = sessions
+            df.loc[:, InternalNames.SESSIONS] = sessions
 
             # Fix: Store start_date and end_date as strings to avoid datetime.date/datetime64 conversion issues
 
-            df.loc[:, 'start_date'] = min(dates).strftime('%Y-%m-%d') if dates else default_date
+            df.loc[:, InternalNames.START_DATE] = min(dates).strftime('%Y-%m-%d') if dates else default_date
 
-            df.loc[:, 'end_date'] = max(dates).strftime('%Y-%m-%d') if dates else default_date
+            df.loc[:, InternalNames.END_DATE] = max(dates).strftime('%Y-%m-%d') if dates else default_date
 
-            df.loc[:, 'num_days'] = (max(dates).date() - min(dates).date()).days + 1 if dates else 0
+            df.loc[:, InternalNames.NUM_DAYS] = (max(dates).date() - min(dates).date()).days + 1 if dates else 0
 
-            logger.info(f"Start date: {df['start_date'].iloc[0]}, End date: {df['end_date'].iloc[0]}, Number of days: {df['num_days'].iloc[0]}")
+            logger.info(f"Start date: {df[InternalNames.START_DATE].iloc[0]}, End date: {df[InternalNames.END_DATE].iloc[0]}, Number of days: {df[InternalNames.NUM_DAYS].iloc[0]}")
 
         except Exception as e:
 
             logger.error(f"Error setting date parameters: {e}")
 
-            df.loc[:, 'sessions'] = 0
+            df.loc[:, InternalNames.SESSIONS] = 0
 
-            df.loc[:, 'start_date'] = default_date
+            df.loc[:, InternalNames.START_DATE] = default_date
 
-            df.loc[:, 'end_date'] = default_date
+            df.loc[:, InternalNames.END_DATE] = default_date
 
-            df.loc[:, 'num_days'] = 0
+            df.loc[:, InternalNames.NUM_DAYS] = 0
 
 
 
@@ -332,19 +333,19 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
             # the column dtype freely, which is critical for resolving Dtype conflicts.
 
-            df['date-obs'] = pd.to_datetime(df['date-obs'], errors='coerce')
+            df[StandardizedKeys.DATE_OBS] = pd.to_datetime(df[StandardizedKeys.DATE_OBS], errors='coerce')
 
-            if df['date-obs'].isna().all():
+            if df[StandardizedKeys.DATE_OBS].isna().all():
 
                 logger.warning("All dates failed parsing. Using default_date.")
 
-                df['date-obs'] = pd.to_datetime(default_date)
+                df[StandardizedKeys.DATE_OBS] = pd.to_datetime(default_date)
 
         except Exception as e:
 
             logger.error(f"Error converting date-obs to datetime: {e}")
 
-            df['date-obs'] = pd.to_datetime(default_date)
+            df[StandardizedKeys.DATE_OBS] = pd.to_datetime(default_date)
 
 
 
@@ -362,13 +363,13 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
                 threshold = pd.Timedelta(hours=5)
 
-                df = df.sort_values(by='date-obs', ascending=True).reset_index(drop=True)
+                df = df.sort_values(by=StandardizedKeys.DATE_OBS, ascending=True).reset_index(drop=True)
 
                 logger.info("Sorted DataFrame by 'date-obs'")
 
-                df.loc[:, 'new-date-obs'] = df['date-obs']
+                df.loc[:, 'new-date-obs'] = df[StandardizedKeys.DATE_OBS]
 
-                ref_datetime = df['date-obs'][0]
+                ref_datetime = df[StandardizedKeys.DATE_OBS][0]
 
                 midnight = pd.Timestamp("00:00:00").time()
 
@@ -378,11 +379,11 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
                 logger.info(f"Reference date set to: {ref_date}")
 
-                for n in range(1, len(df['date-obs'])):
+                for n in range(1, len(df[StandardizedKeys.DATE_OBS])):
 
-                    current_date = df['date-obs'][n]
+                    current_date = df[StandardizedKeys.DATE_OBS][n]
 
-                    previous_date = df['date-obs'][n-1]
+                    previous_date = df[StandardizedKeys.DATE_OBS][n-1]
 
                     date_diff = current_date - previous_date
 
@@ -398,9 +399,9 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
                     logger.debug(f"Updated 'new-date-obs' for row {n} to {ref_date}")
 
-                df = df.drop(columns=['date-obs'], errors='ignore')
+                df = df.drop(columns=[StandardizedKeys.DATE_OBS], errors='ignore')
 
-                df = df.rename(columns={'new-date-obs': 'date-obs'})
+                df = df.rename(columns={'new-date-obs': StandardizedKeys.DATE_OBS})
 
                 logger.info("Replaced original 'date-obs' with updated values")
 
@@ -412,7 +413,7 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         # Final Formatting for Aggregation
 
-        df.loc[:, 'date-obs'] = pd.to_datetime(df['date-obs']).dt.strftime('%Y-%m-%d')
+        df.loc[:, StandardizedKeys.DATE_OBS] = pd.to_datetime(df[StandardizedKeys.DATE_OBS]).dt.strftime('%Y-%m-%d')
 
         logger.info("Converted 'date-obs' column to YYYY-MM-DD string format")
 
@@ -420,9 +421,9 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         # Split DataFrame into MASTER calibration files and individual frames
 
-        df_master = df[df['imagetyp'].str.contains('MASTER') & ~df['imagetyp'].str.contains('MASTERLIGHT')]
+        df_master = df[df[StandardizedKeys.IMAGE_TYPE].str.contains('MASTER') & ~df[StandardizedKeys.IMAGE_TYPE].str.contains('MASTERLIGHT')]
 
-        df_not_master = df[~df['imagetyp'].str.contains('MASTER')]
+        df_not_master = df[~df[StandardizedKeys.IMAGE_TYPE].str.contains('MASTER')]
 
         state['df_not_master'] = df_not_master
 
@@ -434,61 +435,61 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         agg_dict = {
 
-            'ccd-temp': ('ccd-temp', 'mean'),
+            StandardizedKeys.CCD_TEMP: (StandardizedKeys.CCD_TEMP, 'mean'),
 
-            'temp_min': ('foctemp', 'min'),
+            'temp_min': (StandardizedKeys.FOCUSER_TEMP, 'min'),
 
-            'temp_max': ('foctemp', 'max'),
+            'temp_max': (StandardizedKeys.FOCUSER_TEMP, 'max'),
 
-            'fwhm': ('fwhm', 'mean'),
+            StandardizedKeys.FWHM: (StandardizedKeys.FWHM, 'mean'),
 
-            'sitelat': ('sitelat', valid_mean),
+            StandardizedKeys.SITE_LAT: (StandardizedKeys.SITE_LAT, valid_mean),
 
-            'sitelong': ('sitelong', valid_mean),
+            StandardizedKeys.SITE_LONG: (StandardizedKeys.SITE_LONG, valid_mean),
 
-            'focratio': ('focratio', 'mean'),
+            StandardizedKeys.FOCAL_RATIO: (StandardizedKeys.FOCAL_RATIO, 'mean'),
 
-            'foctemp': ('foctemp', 'mean'),
+            StandardizedKeys.FOCUSER_TEMP: (StandardizedKeys.FOCUSER_TEMP, 'mean'),
 
-            'focallen': ('focallen', 'first'),
+            StandardizedKeys.FOCAL_LENGTH: (StandardizedKeys.FOCAL_LENGTH, 'first'),
 
-            'bortle': ('bortle', 'mean'),
+            StandardizedKeys.BORTLE: (StandardizedKeys.BORTLE, 'mean'),
 
-            'sqm': ('sqm', 'mean'),
+            StandardizedKeys.SQM: (StandardizedKeys.SQM, 'mean'),
 
-            'hfr': ('hfr', 'mean'),
+            StandardizedKeys.HFR: (StandardizedKeys.HFR, 'mean'),
 
-            'xpixsz': ('xpixsz', 'first'),
+            StandardizedKeys.PIXEL_SIZE: (StandardizedKeys.PIXEL_SIZE, 'first'),
 
-            'egain': ('egain', 'mean'),
+            StandardizedKeys.EGAIN: (StandardizedKeys.EGAIN, 'mean'),
 
-            'instrume': ('instrume', 'first'),
+            StandardizedKeys.INSTRUMENT: (StandardizedKeys.INSTRUMENT, 'first'),
 
-            'imscale': ('imscale', 'mean'),
+            StandardizedKeys.IMSCALE: (StandardizedKeys.IMSCALE, 'mean'),
 
-            'telescop': ('telescop', 'first'),
+            StandardizedKeys.TELESCOPE: (StandardizedKeys.TELESCOPE, 'first'),
 
-            'focname': ('focname', 'first'),
+            StandardizedKeys.FOCUSER: (StandardizedKeys.FOCUSER, 'first'),
 
-            'fwheel': ('fwheel', 'first'),
+            StandardizedKeys.FILTER_WHEEL: (StandardizedKeys.FILTER_WHEEL, 'first'),
 
-            'rotname': ('rotname', 'first'),
+            StandardizedKeys.ROTATOR_NAME: (StandardizedKeys.ROTATOR_NAME, 'first'),
 
-            'rotantang':('rotantang','first'),
+            StandardizedKeys.ROTATOR_ANGLE:(StandardizedKeys.ROTATOR_ANGLE,'first'),
 
-            'target': ('object', 'first'),
+            InternalNames.TARGET: (StandardizedKeys.OBJECT, 'first'),
 
-            'swcreate': ('swcreate', 'first'),
+            StandardizedKeys.SWCREATE: (StandardizedKeys.SWCREATE, 'first'),
 
-            'filename': ('filename', 'first'),
+            StandardizedKeys.FILENAME: (StandardizedKeys.FILENAME, 'first'),
 
-            'sessions': ('sessions', 'first'),
+            InternalNames.SESSIONS: (InternalNames.SESSIONS, 'first'),
 
-            'start_date': ('start_date', 'first'),
+            InternalNames.START_DATE: (InternalNames.START_DATE, 'first'),
 
-            'end_date': ('end_date', 'first'),
+            InternalNames.END_DATE: (InternalNames.END_DATE, 'first'),
 
-            'num_days': ('num_days', 'first')
+            InternalNames.NUM_DAYS: (InternalNames.NUM_DAYS, 'first')
 
         }
 
@@ -496,9 +497,9 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         try:
 
-            agg_not_master_df = df_not_master.groupby(['site', 'date-obs', 'imagetyp', 'filter', 'gain', 'xbinning', 'exposure', 'object']).agg(
+            agg_not_master_df = df_not_master.groupby([StandardizedKeys.SITE, StandardizedKeys.DATE_OBS, StandardizedKeys.IMAGE_TYPE, StandardizedKeys.FILTER, StandardizedKeys.GAIN, StandardizedKeys.XBINNING, StandardizedKeys.EXPOSURE, StandardizedKeys.OBJECT]).agg(
 
-                number=('date-obs', 'count'),
+                number=(StandardizedKeys.DATE_OBS, 'count'),
 
                 **agg_dict
 
@@ -524,7 +525,7 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
             df_master = df_master.copy()
 
-            df_master.loc[:, 'imscale'] = df_not_master['imscale']
+            df_master.loc[:, StandardizedKeys.IMSCALE] = df_not_master[StandardizedKeys.IMSCALE]
 
             aggregated_df = pd.concat([df_master, agg_not_master_df])
 
@@ -534,33 +535,33 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         aggregated_df = aggregated_df.rename(columns={
 
-            'imagetyp': 'imageType',
+            StandardizedKeys.IMAGE_TYPE: InternalNames.IMAGE_TYPE,
 
-            'ccd-temp': 'sensorCooling',
+            StandardizedKeys.CCD_TEMP: InternalNames.SENSOR_COOLING,
 
-            'xbinning': 'binning',
+            StandardizedKeys.XBINNING: InternalNames.BINNING,
 
-            'exposure': 'duration',
+            StandardizedKeys.EXPOSURE: InternalNames.DURATION,
 
-            'fwhm': 'meanFwhm',
+            StandardizedKeys.FWHM: InternalNames.MEAN_FWHM,
 
-            'focratio': 'fNumber',
+            StandardizedKeys.FOCAL_RATIO: InternalNames.F_NUMBER,
 
-            'foctemp': 'temperature',
+            StandardizedKeys.FOCUSER_TEMP: InternalNames.TEMPERATURE,
 
-            'focname': 'focuser',
+            StandardizedKeys.FOCUSER: InternalNames.FOCUSER,
 
-            'fwheel': 'filterWheel',
+            StandardizedKeys.FILTER_WHEEL: InternalNames.FILTER_WHEEL,
 
-            'telescop': 'telescope',
+            StandardizedKeys.TELESCOPE: InternalNames.TELESCOPE,
 
-            'instrume': 'camera',
+            StandardizedKeys.INSTRUMENT: InternalNames.CAMERA,
 
-            'sqm': 'meanSqm',
+            StandardizedKeys.SQM: InternalNames.MEAN_SQM,
 
-            'focallen': 'focalLength',
+            StandardizedKeys.FOCAL_LENGTH: InternalNames.FOCAL_LENGTH,
 
-            'xpixsz': 'pixelSize'
+            StandardizedKeys.PIXEL_SIZE: InternalNames.PIXEL_SIZE
 
         })
 
@@ -572,55 +573,55 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         try:
 
-            aggregated_df.loc[:, 'sensorCooling'] = aggregated_df['sensorCooling'].astype(float).round().astype(int)
+            aggregated_df.loc[:, InternalNames.SENSOR_COOLING] = aggregated_df[InternalNames.SENSOR_COOLING].astype(float).round().astype(int)
 
             aggregated_df.loc[:, 'temp_min'] = aggregated_df['temp_min'].astype(float)
 
             aggregated_df.loc[:, 'temp_max'] = aggregated_df['temp_max'].astype(float)
 
-            aggregated_df.loc[:, 'temperature'] = aggregated_df['temperature'].astype(float)
+            aggregated_df.loc[:, InternalNames.TEMPERATURE] = aggregated_df[InternalNames.TEMPERATURE].astype(float)
 
-            aggregated_df.loc[:, 'meanFwhm'] = aggregated_df['meanFwhm'].astype(float)
+            aggregated_df.loc[:, InternalNames.MEAN_FWHM] = aggregated_df[InternalNames.MEAN_FWHM].astype(float)
 
-            aggregated_df.loc[:, 'sitelat'] = aggregated_df['sitelat'].astype(float)
+            aggregated_df.loc[:, InternalNames.SITE_LAT] = aggregated_df[InternalNames.SITE_LAT].astype(float)
 
-            aggregated_df.loc[:, 'sitelong'] = aggregated_df['sitelong'].astype(float)
+            aggregated_df.loc[:, InternalNames.SITE_LONG] = aggregated_df[InternalNames.SITE_LONG].astype(float)
 
-            aggregated_df.loc[:, 'fNumber'] = aggregated_df['fNumber'].astype(float)
+            aggregated_df.loc[:, InternalNames.F_NUMBER] = aggregated_df[InternalNames.F_NUMBER].astype(float)
 
-            aggregated_df.loc[:, 'bortle'] = aggregated_df['bortle'].astype(float)
+            aggregated_df.loc[:, InternalNames.BORTLE] = aggregated_df[InternalNames.BORTLE].astype(float)
 
-            aggregated_df.loc[:, 'meanSqm'] = aggregated_df['meanSqm'].astype(float)
+            aggregated_df.loc[:, InternalNames.MEAN_SQM] = aggregated_df[InternalNames.MEAN_SQM].astype(float)
 
-            aggregated_df.loc[:, 'egain'] = aggregated_df['egain'].astype(float)
+            aggregated_df.loc[:, StandardizedKeys.EGAIN] = aggregated_df[StandardizedKeys.EGAIN].astype(float)
 
-            aggregated_df.loc[:, 'camera'] = aggregated_df['camera'].astype(str)
+            aggregated_df.loc[:, InternalNames.CAMERA] = aggregated_df[InternalNames.CAMERA].astype(str)
 
-            aggregated_df.loc[:, 'telescope'] = aggregated_df['telescope'].astype(str)
+            aggregated_df.loc[:, InternalNames.TELESCOPE] = aggregated_df[InternalNames.TELESCOPE].astype(str)
 
-            aggregated_df.loc[:, 'focuser'] = aggregated_df['focuser'].astype(str)
+            aggregated_df.loc[:, InternalNames.FOCUSER] = aggregated_df[InternalNames.FOCUSER].astype(str)
 
-            aggregated_df.loc[:, 'filterWheel'] = aggregated_df['filterWheel'].astype(str)
+            aggregated_df.loc[:, InternalNames.FILTER_WHEEL] = aggregated_df[InternalNames.FILTER_WHEEL].astype(str)
 
-            aggregated_df.loc[:, 'rotname'] = aggregated_df['rotname'].astype(str)
+            aggregated_df.loc[:, InternalNames.ROTATOR_NAME] = aggregated_df[InternalNames.ROTATOR_NAME].astype(str)
 
-            aggregated_df.loc[:, 'rotantang'] = aggregated_df['rotantang'].astype(str)
+            aggregated_df.loc[:, InternalNames.ROTATOR_ANGLE] = aggregated_df[InternalNames.ROTATOR_ANGLE].astype(str)
 
-            aggregated_df.loc[:, 'target'] = aggregated_df['target'].astype(str)
+            aggregated_df.loc[:, InternalNames.TARGET] = aggregated_df[InternalNames.TARGET].astype(str)
 
-            aggregated_df.loc[:, 'swcreate'] = aggregated_df['swcreate'].astype(str)
+            aggregated_df.loc[:, StandardizedKeys.SWCREATE] = aggregated_df[StandardizedKeys.SWCREATE].astype(str)
 
-            aggregated_df.loc[:, 'duration'] = aggregated_df['duration'].astype(float)
+            aggregated_df.loc[:, InternalNames.DURATION] = aggregated_df[InternalNames.DURATION].astype(float)
 
-            aggregated_df.loc[:, 'focalLength'] = aggregated_df['focalLength'].astype(float)
+            aggregated_df.loc[:, InternalNames.FOCAL_LENGTH] = aggregated_df[InternalNames.FOCAL_LENGTH].astype(float)
 
-            aggregated_df.loc[:, 'pixelSize'] = aggregated_df['pixelSize'].astype(float)
+            aggregated_df.loc[:, InternalNames.PIXEL_SIZE] = aggregated_df[InternalNames.PIXEL_SIZE].astype(float)
 
-            aggregated_df.loc[:, 'imageType'] = aggregated_df['imageType'].astype(str)
+            aggregated_df.loc[:, InternalNames.IMAGE_TYPE] = aggregated_df[InternalNames.IMAGE_TYPE].astype(str)
 
-            aggregated_df.loc[:, 'sessions'] = aggregated_df['sessions'].astype(int)
+            aggregated_df.loc[:, InternalNames.SESSIONS] = aggregated_df[InternalNames.SESSIONS].astype(int)
 
-            aggregated_df.loc[:, 'num_days'] = aggregated_df['num_days'].astype(int)
+            aggregated_df.loc[:, InternalNames.NUM_DAYS] = aggregated_df[InternalNames.NUM_DAYS].astype(int)
 
         except Exception as e:
 
@@ -634,33 +635,33 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
             'temp_max': 2,
 
-            'temperature': 2,
+            InternalNames.TEMPERATURE: 2,
 
-            'meanFwhm': 2,
+            InternalNames.MEAN_FWHM: 2,
 
-            'sitelat': state['dp'],
+            InternalNames.SITE_LAT: state['dp'],
 
-            'sitelong': state['dp'],
+            InternalNames.SITE_LONG: state['dp'],
 
-            'fNumber': 2,
+            InternalNames.F_NUMBER: 2,
 
-            'bortle': 2,
+            InternalNames.BORTLE: 2,
 
-            'meanSqm': 2,
+            InternalNames.MEAN_SQM: 2,
 
-            'duration': 2
+            InternalNames.DURATION: 2
 
         })
 
         # Handle cases where site coordinates were missing across the entire dataset.
 
-        if aggregated_df['sitelat'].isna().all():
+        if aggregated_df[InternalNames.SITE_LAT].isna().all():
 
-            aggregated_df.loc[:, 'sitelat'] = state['headers_state']['config']['defaults'].get('SITELAT', np.nan)
+            aggregated_df.loc[:, InternalNames.SITE_LAT] = state['headers_state']['config'][ConfigKeys.DEFAULTS].get(FITSKeywords.SITE_LAT, np.nan)
 
-        if aggregated_df['sitelong'].isna().all():
+        if aggregated_df[InternalNames.SITE_LONG].isna().all():
 
-            aggregated_df.loc[:, 'sitelong'] = state['headers_state']['config']['defaults'].get('SITELONG', np.nan)
+            aggregated_df.loc[:, InternalNames.SITE_LONG] = state['headers_state']['config'][ConfigKeys.DEFAULTS].get(FITSKeywords.SITE_LONG, np.nan)
 
         logger.info("Rounded and cast values to correct type")
 
@@ -668,11 +669,11 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         logger.info(f"aggregated_df keys: {list(aggregated_df.keys())}")
 
-        logger.info(f"Number of observation sessions: {aggregated_df['sessions'].iloc[0]}")
+        logger.info(f"Number of observation sessions: {aggregated_df[InternalNames.SESSIONS].iloc[0]}")
 
-        logger.info(f"start_date: {aggregated_df['start_date'].iloc[0]}")
+        logger.info(f"start_date: {aggregated_df[InternalNames.START_DATE].iloc[0]}")
 
-        logger.info(f"end_date: {aggregated_df['end_date'].iloc[0]}")
+        logger.info(f"end_date: {aggregated_df[InternalNames.END_DATE].iloc[0]}")
 
         logger.info(f"num_days: {aggregated_df['num_days'].iloc[0]}")
 
@@ -844,7 +845,7 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         # Force gain and sensorCooling to be integers for matching, resolving float/int mismatch bugs.
 
-        for col in ['gain', 'sensorCooling']:
+        for col in [StandardizedKeys.GAIN, InternalNames.SENSOR_COOLING]:
 
             if col in df.columns:
 
@@ -862,7 +863,7 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         # Get filter dictionary from configuration
 
-        filters_dict = state['headers_state']['config']['filters']
+        filters_dict = state['headers_state']['config'][ConfigKeys.FILTERS]
 
         # Initialize empty DataFrame for output
 
@@ -874,7 +875,7 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         # Extract LIGHT frames as the base for the acquisition table
 
-        light_group = df[df['imageType'] == 'LIGHT'].copy()
+        light_group = df[df[InternalNames.IMAGE_TYPE] == ImageTypes.LIGHT].copy()
 
         logger.info("Created 'LIGHT' DataFrame copy")
 
@@ -882,7 +883,7 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         # Ensure filter column is string type for mapping and matching
 
-        light_group['filter'] = light_group['filter'].astype(str)
+        light_group[StandardizedKeys.FILTER] = light_group[StandardizedKeys.FILTER].astype(str)
 
 
 
@@ -892,13 +893,13 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         imagetyp_to_column = {
 
-            'BIAS': 'bias',
+            ImageTypes.BIAS: 'bias',
 
-            'DARK': 'darks',
+            ImageTypes.DARK: 'darks',
 
-            'DARKFLAT': 'flatDarks',
+            ImageTypes.DARK_FLAT: 'flatDarks',
 
-            'FLAT': 'flats'
+            ImageTypes.FLAT: 'flats'
 
         }
 
@@ -912,13 +913,13 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
                 # Extract frames for the current image type
 
-                sub_group = df[df['imageType'] == imagetyp]
+                sub_group = df[df[InternalNames.IMAGE_TYPE] == imagetyp]
 
                 # Match Darks/Bias by Gain, Flats by Filter name.
 
                 light_group[column] = light_group.apply(
 
-                    lambda x: sub_group[sub_group['gain' if imagetyp != 'FLAT' else 'filter'] == x['gain' if imagetyp != 'FLAT' else 'filter']]['number'].sum(),
+                    lambda x: sub_group[sub_group[StandardizedKeys.GAIN if imagetyp != ImageTypes.FLAT else StandardizedKeys.FILTER] == x[StandardizedKeys.GAIN if imagetyp != ImageTypes.FLAT else StandardizedKeys.FILTER]][InternalNames.NUMBER if InternalNames.NUMBER in sub_group.columns else StandardizedKeys.NUMBER].sum(),
 
                     axis=1
 
@@ -938,13 +939,13 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
         master_imagetyp_to_column = {
 
-            'MASTERBIAS': 'bias',
+            ImageTypes.MASTER_BIAS: 'bias',
 
-            'MASTERDARK': 'darks',
+            ImageTypes.MASTER_DARK: 'darks',
 
-            'MASTERDARKFLAT': 'flatDarks',
+            ImageTypes.MASTER_DARKFLAT: 'flatDarks',
 
-            'MASTERFLAT': 'flats'
+            ImageTypes.MASTER_FLAT: 'flats'
 
         }
 
@@ -956,13 +957,13 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
             try:
 
-                sub_group = df[df['imageType'] == imagetyp]
+                sub_group = df[df[InternalNames.IMAGE_TYPE] == imagetyp]
 
                 if not sub_group.empty:
 
                     light_group[column] = light_group.apply(
 
-                        lambda x: sub_group[sub_group['gain' if imagetyp != 'MASTERFLAT' else 'filter'] == x['gain' if imagetyp != 'MASTERFLAT' else 'filter']]['number'].sum(),
+                        lambda x: sub_group[sub_group[StandardizedKeys.GAIN if imagetyp != ImageTypes.MASTER_FLAT else StandardizedKeys.FILTER] == x[StandardizedKeys.GAIN if imagetyp != ImageTypes.MASTER_FLAT else StandardizedKeys.FILTER]][InternalNames.NUMBER if InternalNames.NUMBER in sub_group.columns else StandardizedKeys.NUMBER].sum(),
 
                         axis=1
 
@@ -982,9 +983,9 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
             # Replaces the descriptive filter name (e.g. 'Ha') with the numeric ID (e.g. '4663').
 
-            original_filters = [f.strip() for f in light_group['filter'].unique()]
+            original_filters = [f.strip() for f in light_group[StandardizedKeys.FILTER].unique()]
 
-            light_group['filter'] = light_group['filter'].apply(lambda x: filters_dict.get(x.strip(), x.strip()))
+            light_group[StandardizedKeys.FILTER] = light_group[StandardizedKeys.FILTER].apply(lambda x: filters_dict.get(x.strip(), x.strip()))
 
             logger.info("Mapped filter names to codes:")
 
@@ -1000,17 +1001,17 @@ def create_astrobin_output(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
             column_order = [
 
-                'date', 'filter', 'number', 'duration', 'binning', 'gain',
+                'date', StandardizedKeys.FILTER, InternalNames.NUMBER, InternalNames.DURATION, InternalNames.BINNING, StandardizedKeys.GAIN,
 
-                'sensorCooling', 'fNumber', 'darks', 'flats', 'flatDarks', 'bias',
+                InternalNames.SENSOR_COOLING, InternalNames.F_NUMBER, 'darks', 'flats', 'flatDarks', 'bias',
 
-                'bortle', 'meanSqm', 'meanFwhm', 'temperature'
+                InternalNames.BORTLE, InternalNames.MEAN_SQM, InternalNames.MEAN_FWHM, InternalNames.TEMPERATURE
 
             ]
 
             # Rename date-obs to date for the header
 
-            light_group.rename(columns={'date-obs': 'date'}, inplace=True)
+            light_group.rename(columns={StandardizedKeys.DATE_OBS: 'date'}, inplace=True)
 
             light_group_agg = light_group[column_order]
 

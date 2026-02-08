@@ -5,8 +5,9 @@ import pandas as pd
 from datetime import datetime
 from typing import Tuple, Union
 import numpy as np
+from constants import InternalNames, ImageTypes, StandardizedKeys
 
-utils_version = '1.4.5'
+utils_version = '1.4.6'
 #
 # Date: Sunday 1st February 2026
 # Modification : v1.4.2 Restoration & Logic Overhaul.
@@ -188,11 +189,11 @@ def process_image_type(group: pd.DataFrame, imagetype: str, logger: logging.Logg
         if not isinstance(imagetype, str) or not imagetype.strip():
             raise ValueError("imagetype must be a non-empty string")
 
-        valid_imagetypes = {'LIGHT', 'LIGHTFRAME', 'DARK', 'MASTERDARK', 'BIAS', 'MASTERBIAS', 'FLAT', 'MASTERFLAT'}
+        valid_imagetypes = {ImageTypes.LIGHT, 'LIGHTFRAME', ImageTypes.DARK, ImageTypes.MASTER_DARK, ImageTypes.BIAS, ImageTypes.MASTER_BIAS, ImageTypes.FLAT, ImageTypes.MASTER_FLAT}
         if imagetype not in valid_imagetypes:
             raise ValueError(f"Invalid imagetype: {imagetype}. Must be one of {valid_imagetypes}")
 
-        required_columns = {'imageType', 'number', 'duration'}
+        required_columns = {InternalNames.IMAGE_TYPE, InternalNames.NUMBER, InternalNames.DURATION}
         if not required_columns.issubset(group.columns):
             missing = required_columns - set(group.columns)
             raise ValueError(f"Missing required columns: {missing}")
@@ -201,13 +202,13 @@ def process_image_type(group: pd.DataFrame, imagetype: str, logger: logging.Logg
         lines = []
         total_exposure_time = 0.0
 
-        image_group = group[group['imageType'] == imagetype].copy()
+        image_group = group[group[InternalNames.IMAGE_TYPE] == imagetype].copy()
         if image_group.empty:
             logger.warning(f"No frames found for image type: {imagetype}")
             return f"\nNo {imagetype} frames found\n", 0.0
 
-        if imagetype in {'LIGHT', 'LIGHTFRAME'}:
-            required_columns = {'target', 'filter', 'gain', 'egain', 'meanFwhm', 'temperature', 'sensorCooling'}
+        if imagetype in {ImageTypes.LIGHT, 'LIGHTFRAME'}:
+            required_columns = {InternalNames.TARGET, StandardizedKeys.FILTER, StandardizedKeys.GAIN, StandardizedKeys.EGAIN, InternalNames.MEAN_FWHM, InternalNames.TEMPERATURE, InternalNames.SENSOR_COOLING}
             if not required_columns.issubset(image_group.columns):
                 missing = required_columns - set(image_group.columns)
                 logger.error(f"Missing required columns for LIGHT processing: {missing}")
@@ -215,22 +216,22 @@ def process_image_type(group: pd.DataFrame, imagetype: str, logger: logging.Logg
 
             format_string = " {:<8} {:<8} {:<8} {:<12} {:<12} {:<12} {:<12} {:<15} {:<15}"
             lines.append(f" {imagetype}S:")
-            for target, target_group in image_group.groupby('target', observed=True):
+            for target, target_group in image_group.groupby(InternalNames.TARGET, observed=True):
                 total_exposure_time_target = 0.0
                 lines.append(f" Target: {target}\n")
                 lines.append(format_string.format(
                     "Filter", "Frames", "Gain", "Egain", "Mean FWHM",
                     "Sensor Temp", "Mean Temp", "Exposure", "Total Exposure"
                 ))
-                for _, sub_group in target_group.groupby('filter', observed=True):
+                for _, sub_group in target_group.groupby(StandardizedKeys.FILTER, observed=True):
                     try:
-                        frame_count = int(sub_group['number'].sum())
-                        exposure = float(sub_group['duration'].iloc[0])
-                        gain = f"{float(sub_group['gain'].iloc[0]) * 0.1:.2f} dB"
-                        egain = f"{float(sub_group['egain'].iloc[0]):.2f} e/ADU"
-                        mean_fwhm = f"{sub_group['meanFwhm'].mean():.2f} arcsec"
-                        mean_temperature = f"{sub_group['temperature'].mean():.1f}\u00B0C"
-                        sensor_temperature = f"{sub_group['sensorCooling'].mean():.1f}\u00B0C"
+                        frame_count = int(sub_group[InternalNames.NUMBER].sum())
+                        exposure = float(sub_group[InternalNames.DURATION].iloc[0])
+                        gain = f"{float(sub_group[StandardizedKeys.GAIN].iloc[0]) * 0.1:.2f} dB"
+                        egain = f"{float(sub_group[StandardizedKeys.EGAIN].iloc[0]):.2f} e/ADU"
+                        mean_fwhm = f"{sub_group[InternalNames.MEAN_FWHM].mean():.2f} arcsec"
+                        mean_temperature = f"{sub_group[InternalNames.TEMPERATURE].mean():.1f}\u00B0C"
+                        sensor_temperature = f"{sub_group[InternalNames.SENSOR_COOLING].mean():.1f}\u00B0C"
 
                         mean_temperature = f" {mean_temperature}" if mean_temperature[0] != '-' else mean_temperature
                         sensor_temperature = f" {sensor_temperature}" if sensor_temperature[0] != '-' else sensor_temperature
@@ -238,54 +239,54 @@ def process_image_type(group: pd.DataFrame, imagetype: str, logger: logging.Logg
                         total_exposure = frame_count * exposure
                         total_exposure_time_target += total_exposure
                         lines.append(format_string.format(
-                            str(sub_group['filter'].iloc[0]), frame_count, gain, egain,
+                            str(sub_group[StandardizedKeys.FILTER].iloc[0]), frame_count, gain, egain,
                             mean_fwhm, sensor_temperature, mean_temperature,
                             f"{exposure:.2f} secs", seconds_to_hms(total_exposure, logger, aligned=True)
                         ))
-                        logger.info(f"Processed {frame_count} frames for filter {sub_group['filter'].iloc[0]} "
+                        logger.info(f"Processed {frame_count} frames for filter {sub_group[StandardizedKeys.FILTER].iloc[0]} "
                                    f"with total exposure time {seconds_to_hms(total_exposure, logger)}")
                     except (KeyError, IndexError, ValueError) as e:
                         logger.error(f"Error processing filter group for {imagetype} (target: {target}): {str(e)}")
                 total_exposure_time += total_exposure_time_target
                 lines.append(f"\n Exposure time for {target}: {seconds_to_hms(total_exposure_time_target, logger)}\n")
 
-        elif imagetype in {'DARK', 'MASTERDARK', 'BIAS', 'MASTERBIAS'}:
-            required_columns = {'gain', 'egain', 'duration', 'sensorCooling'} if imagetype in {'DARK', 'MASTERDARK'} else {'gain', 'egain', 'duration'}
+        elif imagetype in {ImageTypes.DARK, ImageTypes.MASTER_DARK, ImageTypes.BIAS, ImageTypes.MASTER_BIAS}:
+            required_columns = {StandardizedKeys.GAIN, StandardizedKeys.EGAIN, InternalNames.DURATION, InternalNames.SENSOR_COOLING} if imagetype in {ImageTypes.DARK, ImageTypes.MASTER_DARK} else {StandardizedKeys.GAIN, StandardizedKeys.EGAIN, InternalNames.DURATION}
             if not required_columns.issubset(image_group.columns):
                 missing = required_columns - set(image_group.columns)
                 logger.error(f"Missing required columns for {imagetype} processing: {missing}")
                 return f"\nError processing {imagetype}: Missing columns {missing}\n", 0.0
 
             detail_format = (" {:<10} {:<8} {:<8} {:<12} {:<12} {:<15}"
-                            if imagetype in {'DARK', 'MASTERDARK'}
+                            if imagetype in {ImageTypes.DARK, ImageTypes.MASTER_DARK}
                             else " {:<10} {:<8} {:<8} {:<12} {:<10} {:<15}")
             lines.append(f"\n {imagetype}:\n")
             lines.append(detail_format.format(
                 "Filter", "Frames", "Gain", "Egain", "Exposure",
-                "Sensor Temp" if imagetype in {'DARK', 'MASTERDARK'} else "Total Exposure"
+                "Sensor Temp" if imagetype in {ImageTypes.DARK, ImageTypes.MASTER_DARK} else "Total Exposure"
             ))
-            for gain, sub_group in image_group.groupby('gain', observed=True):
+            for gain, sub_group in image_group.groupby(StandardizedKeys.GAIN, observed=True):
                 try:
-                    frame_count = int(sub_group['number'].sum())
-                    exposure = float(sub_group['duration'].iloc[0])
+                    frame_count = int(sub_group[InternalNames.NUMBER].sum())
+                    exposure = float(sub_group[InternalNames.DURATION].iloc[0])
                     fgain = f"{float(gain) * 0.1:.2f} dB"
-                    egain = f"{float(sub_group['egain'].iloc[0]):.2f} e/ADU"
-                    filter_name = 'N/A' if 'filter' not in sub_group.columns else str(sub_group['filter'].iloc[0])
-                    sensor_temperature = (f"{sub_group['sensorCooling'].mean():.1f}\u00B0C"
-                                         if imagetype in {'DARK', 'MASTERDARK'} else "")
+                    egain = f"{float(sub_group[StandardizedKeys.EGAIN].iloc[0]):.2f} e/ADU"
+                    filter_name = 'N/A' if StandardizedKeys.FILTER not in sub_group.columns else str(sub_group[StandardizedKeys.FILTER].iloc[0])
+                    sensor_temperature = (f"{sub_group[InternalNames.SENSOR_COOLING].mean():.1f}\u00B0C"
+                                         if imagetype in {ImageTypes.DARK, ImageTypes.MASTER_DARK} else "")
                     total_exposure = frame_count * exposure
                     total_exposure_time += total_exposure
                     lines.append(detail_format.format(
                         filter_name, frame_count, fgain, egain, f"{exposure:.2f} secs",
-                        sensor_temperature if imagetype in {'DARK', 'MASTERDARK'} else seconds_to_hms(total_exposure, logger, aligned=True)
+                        sensor_temperature if imagetype in {ImageTypes.DARK, ImageTypes.MASTER_DARK} else seconds_to_hms(total_exposure, logger, aligned=True)
                     ))
                     logger.info(f"Processed {frame_count} frames for gain {fgain} "
                                f"with total exposure time {seconds_to_hms(total_exposure, logger)}")
                 except (KeyError, IndexError, ValueError) as e:
                     logger.error(f"Error processing gain group for {imagetype} (gain: {gain}): {str(e)}")
 
-        elif imagetype in {'FLAT', 'MASTERFLAT'}:
-            required_columns = {'filter', 'number', 'duration', 'gain', 'egain'}
+        elif imagetype in {ImageTypes.FLAT, ImageTypes.MASTER_FLAT}:
+            required_columns = {StandardizedKeys.FILTER, InternalNames.NUMBER, InternalNames.DURATION, StandardizedKeys.GAIN, StandardizedKeys.EGAIN}
             if not required_columns.issubset(image_group.columns):
                 missing = required_columns - set(image_group.columns)
                 logger.error(f"Missing required columns for {imagetype} processing: {missing}")
@@ -294,22 +295,22 @@ def process_image_type(group: pd.DataFrame, imagetype: str, logger: logging.Logg
             detail_format = " {:<10} {:<8} {:<10} {:<15} {:<12} {:<15}"
             lines.append(f"\n {imagetype}S:\n")
             lines.append(detail_format.format("Filter", "Frames", "Gain", "Egain", "Exposure", "Total Exposure"))
-            for _, sub_group in image_group.groupby('filter', observed=True):
+            for _, sub_group in image_group.groupby(StandardizedKeys.FILTER, observed=True):
                 try:
-                    frame_count = int(sub_group['number'].sum())
-                    exposure = float(sub_group['duration'].iloc[0])
-                    gain = f"{sub_group['gain'].mean() * 0.1:.2f} dB"
-                    egain = f"{float(sub_group['egain'].iloc[0]):.2f} e/ADU"
+                    frame_count = int(sub_group[InternalNames.NUMBER].sum())
+                    exposure = float(sub_group[InternalNames.DURATION].iloc[0])
+                    gain = f"{sub_group[StandardizedKeys.GAIN].mean() * 0.1:.2f} dB"
+                    egain = f"{float(sub_group[StandardizedKeys.EGAIN].iloc[0]):.2f} e/ADU"
                     total_exposure = frame_count * exposure
                     total_exposure_time += total_exposure
                     lines.append(detail_format.format(
-                        str(sub_group['filter'].iloc[0]), frame_count, gain, egain,
+                        str(sub_group[StandardizedKeys.FILTER].iloc[0]), frame_count, gain, egain,
                         f"{exposure:.2f} secs", seconds_to_hms(total_exposure, logger, aligned=True)
                     ))
-                    logger.info(f"Processed {frame_count} frames for filter {sub_group['filter'].iloc[0]} "
+                    logger.info(f"Processed {frame_count} frames for filter {sub_group[StandardizedKeys.FILTER].iloc[0]} "
                                f"with total exposure time {seconds_to_hms(total_exposure, logger)}")
                 except (KeyError, IndexError, ValueError) as e:
-                    logger.error(f"Error processing filter group for {imagetype} (filter: {sub_group['filter'].iloc[0]}): {str(e)}")
+                    logger.error(f"Error processing filter group for {imagetype} (filter: {sub_group[StandardizedKeys.FILTER].iloc[0]}): {str(e)}")
 
         logger.info(f"Completed processing {imagetype} with total exposure time: {seconds_to_hms(total_exposure_time, logger)}")
         return "\n".join(lines), total_exposure_time
@@ -345,7 +346,7 @@ def site_details(group: pd.DataFrame, site: str, logger: logging.Logger) -> str:
         logger.info(f"Generating site details for {site}")
         details = [f"\nSite: {site}"]
 
-        required_columns = {'sitelat', 'sitelong', 'bortle', 'meanSqm'}
+        required_columns = {InternalNames.SITE_LAT, InternalNames.SITE_LONG, InternalNames.BORTLE, InternalNames.MEAN_SQM}
         if not required_columns.issubset(group.columns):
             missing = required_columns - set(group.columns)
             logger.error(f"Missing required columns for site {site}: {missing}")
@@ -355,10 +356,10 @@ def site_details(group: pd.DataFrame, site: str, logger: logging.Logger) -> str:
     
 
         try:
-            sitelat = float(group['sitelat'].iloc[0])
-            sitelong = float(group['sitelong'].iloc[0])
-            bortle = float(group['bortle'].iloc[0])
-            mean_sqm = float(group['meanSqm'].iloc[0])
+            sitelat = float(group[InternalNames.SITE_LAT].iloc[0])
+            sitelong = float(group[InternalNames.SITE_LONG].iloc[0])
+            bortle = float(group[InternalNames.BORTLE].iloc[0])
+            mean_sqm = float(group[InternalNames.MEAN_SQM].iloc[0])
 
             details.append(f"\tLatitude: {sitelat:.4f}\u00B0")
             details.append(f"\tLongitude: {sitelong:.4f}\u00B0")
@@ -396,8 +397,8 @@ def target_details(group: pd.DataFrame, logger: logging.Logger) -> str:
             raise ValueError("logger must be a logging.Logger instance")
         if not isinstance(group, pd.DataFrame):
             raise ValueError("group must be a pandas DataFrame")
-        if 'target' not in group.columns:
-            raise ValueError("group DataFrame missing required 'target' column")
+        if InternalNames.TARGET not in group.columns:
+            raise ValueError(f"group DataFrame missing required '{InternalNames.TARGET}' column")
 
         logger.info("Determining target details")
         target_format = " {:<6} {}"
@@ -407,7 +408,7 @@ def target_details(group: pd.DataFrame, logger: logging.Logger) -> str:
             return target_format.format("Target:", "No target data")
 
         # Normalize target names
-        targets = pd.Series(group['target'].astype(str))
+        targets = pd.Series(group[InternalNames.TARGET].astype(str))
         normalized = targets.str.replace('_', ' ', regex=True).str.lower().str.split().str.join(' ')
         mapping = pd.Series(targets.values, index=normalized).to_dict()
         unique_values = pd.Series(list(mapping.keys())).unique()
@@ -481,7 +482,7 @@ def equipment_used(group: pd.DataFrame, df: pd.DataFrame, logger: logging.Logger
         if not isinstance(group, pd.DataFrame) or not isinstance(df, pd.DataFrame):
             raise ValueError("group and df must be pandas DataFrames")
 
-        required_columns = {'telescope', 'camera', 'filterWheel', 'focuser', 'rotname', 'swcreate'}
+        required_columns = {InternalNames.TELESCOPE, InternalNames.CAMERA, InternalNames.FILTER_WHEEL, InternalNames.FOCUSER, InternalNames.ROTATOR_NAME, 'swcreate'}
         if not required_columns.issubset(group.columns):
             missing = required_columns - set(group.columns)
             logger.error(f"Missing required columns in group DataFrame: {missing}")
@@ -492,11 +493,11 @@ def equipment_used(group: pd.DataFrame, df: pd.DataFrame, logger: logging.Logger
         equipment = ["\nEquipment used:\n"]
 
         equipment_items = {
-            'Telescope': group['telescope'].iloc[0],
-            'Camera': group['camera'].iloc[0],
-            'Filterwheel': group['filterWheel'].iloc[0],
-            'Focuser': group['focuser'].iloc[0],
-            'Rotator': group['rotname'].iloc[0]
+            'Telescope': group[InternalNames.TELESCOPE].iloc[0],
+            'Camera': group[InternalNames.CAMERA].iloc[0],
+            'Filterwheel': group[InternalNames.FILTER_WHEEL].iloc[0],
+            'Focuser': group[InternalNames.FOCUSER].iloc[0],
+            'Rotator': group[InternalNames.ROTATOR_NAME].iloc[0]
         }
 
         for item, value in equipment_items.items():
@@ -505,9 +506,9 @@ def equipment_used(group: pd.DataFrame, df: pd.DataFrame, logger: logging.Logger
         logger.info(f"Equipment details: {', '.join(f'{k}: {v}' for k, v in equipment_items.items() if pd.notna(v) and str(v).lower() not in ['none', 'nan', ''])}")
 
         software_set = set(group['swcreate'].dropna().unique())
-        master_types = {'MASTERFLAT', 'MASTERDARKFLAT', 'MASTERBIAS', 'MASTERDARK'}
+        master_types = {ImageTypes.MASTER_FLAT, ImageTypes.MASTER_DARKFLAT, ImageTypes.MASTER_BIAS, ImageTypes.MASTER_DARK}
         for master_type in master_types:
-            master_group = df[df['imageType'] == master_type]
+            master_group = df[df[InternalNames.IMAGE_TYPE] == master_type]
             if not master_group.empty and 'swcreate' in master_group.columns:
                 software_set.update(master_group['swcreate'].dropna().unique())
 
@@ -549,7 +550,7 @@ def observation_period(group: pd.DataFrame, logger: logging.Logger) -> str:
         if not isinstance(group, pd.DataFrame):
             raise ValueError("group must be a pandas DataFrame")
 
-        required_columns = {'imageType', 'start_date', 'end_date', 'num_days', 'sessions', 'temp_min', 'temp_max', 'temperature'}
+        required_columns = {InternalNames.IMAGE_TYPE, InternalNames.START_DATE, InternalNames.END_DATE, InternalNames.NUM_DAYS, InternalNames.SESSIONS, 'temp_min', 'temp_max', InternalNames.TEMPERATURE}
         if not required_columns.issubset(group.columns):
             missing = required_columns - set(group.columns)
             raise ValueError(f"Missing required columns: {missing}")
@@ -559,16 +560,16 @@ def observation_period(group: pd.DataFrame, logger: logging.Logger) -> str:
         period_format = "\t{:<25}: {}\n"
         error_date = pd.to_datetime('1900-01-01')
 
-        light_group = group[group['imageType'] == 'LIGHT'].copy()
+        light_group = group[group[InternalNames.IMAGE_TYPE] == ImageTypes.LIGHT].copy()
         if light_group.empty:
             logger.warning("No LIGHT frames available")
             return "\n".join([*period, "\tNo LIGHT frames available\n", "\tSession date information not available\n"])
 
         try:
-            start_date = pd.to_datetime(light_group['start_date'].iloc[0])
-            end_date = pd.to_datetime(light_group['end_date'].iloc[0])
-            num_days = int(light_group['num_days'].iloc[0])
-            sessions = int(light_group['sessions'].iloc[0])
+            start_date = pd.to_datetime(light_group[InternalNames.START_DATE].iloc[0])
+            end_date = pd.to_datetime(light_group[InternalNames.END_DATE].iloc[0])
+            num_days = int(light_group[InternalNames.NUM_DAYS].iloc[0])
+            sessions = int(light_group[InternalNames.SESSIONS].iloc[0])
 
             if start_date == error_date or end_date == error_date or num_days == 0 or sessions == 0:
                 logger.error("Invalid date information for observation period")
@@ -581,14 +582,14 @@ def observation_period(group: pd.DataFrame, logger: logging.Logger) -> str:
                 period_format.format("Observation sessions", sessions),
                 period_format.format("Min temperature", f"{light_group['temp_min'].min():.1f}\u00B0C"),
                 period_format.format("Max temperature", f"{light_group['temp_max'].max():.1f}\u00B0C"),
-                period_format.format("Mean temperature", f"{light_group['temperature'].mean():.1f}\u00B0C"),
+                period_format.format("Mean temperature", f"{light_group[InternalNames.TEMPERATURE].mean():.1f}\u00B0C"),
                 "\n"  # Extra newline after Mean temperature
             ])
             logger.info(f"Observation period: Start {start_date.strftime('%Y-%m-%d')}, "
                        f"End {end_date.strftime('%Y-%m-%d')}, Days {num_days}, Sessions {sessions}")
             logger.info(f"Temperatures: Min {light_group['temp_min'].min():.1f}\u00B0C, "
                        f"Max {light_group['temp_max'].max():.1f}\u00B0C, "
-                       f"Mean {light_group['temperature'].mean():.1f}\u00B0C")
+                       f"Mean {light_group[InternalNames.TEMPERATURE].mean():.1f}\u00B0C")
 
         except (KeyError, IndexError, ValueError) as e:
             logger.error(f"Error processing observation period data: {str(e)}")
@@ -628,7 +629,7 @@ def summarize_session(df: pd.DataFrame, logger: logging.Logger, number_of_images
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # Priority order for image types in the summary report.
-        imagetype_order = ['LIGHT', 'FLAT', 'MASTERFLAT', 'DARKFLAT', 'BIAS', 'DARK', 'MASTERDARKFLAT', 'MASTERBIAS', 'MASTERDARK']
+        imagetype_order = [ImageTypes.LIGHT, ImageTypes.FLAT, ImageTypes.MASTER_FLAT, ImageTypes.DARK_FLAT, ImageTypes.BIAS, ImageTypes.DARK, ImageTypes.MASTER_DARKFLAT, ImageTypes.MASTER_BIAS, ImageTypes.MASTER_DARK]
         summary_parts = [f"Observation session summary\nGenerated {current_time}\n"]
 
         if df.empty:
@@ -636,7 +637,7 @@ def summarize_session(df: pd.DataFrame, logger: logging.Logger, number_of_images
             summary_parts.append("No observation data available\n")
             return "\n".join(summary_parts)
 
-        required_columns = {'site', 'imageType'}
+        required_columns = {StandardizedKeys.SITE, InternalNames.IMAGE_TYPE}
         if not required_columns.issubset(df.columns):
             missing = required_columns - set(df.columns)
             logger.error(f"Missing required columns in DataFrame: {missing}")
@@ -644,8 +645,8 @@ def summarize_session(df: pd.DataFrame, logger: logging.Logger, number_of_images
             return "\n".join(summary_parts)
 
         # Multi-Site Iteration: Each site gets its own sub-section in the report.
-        for site, group in df.groupby('site', observed=True):
-            target_group = group[group['imageType'] == 'LIGHT'].reset_index(drop=True)
+        for site, group in df.groupby(StandardizedKeys.SITE, observed=True):
+            target_group = group[group[InternalNames.IMAGE_TYPE] == ImageTypes.LIGHT].reset_index(drop=True)
             if not target_group.empty:
                 logger.info(f"Processing site: {site}")
                 try:
@@ -673,7 +674,7 @@ def summarize_session(df: pd.DataFrame, logger: logging.Logger, number_of_images
             # Section 5: Frame Inventory
             # Iterates through the predefined image type order to list frame counts and exposures.
             for imagetype in imagetype_order:
-                if imagetype in group['imageType'].unique():
+                if imagetype in group[InternalNames.IMAGE_TYPE].unique():
                     try:
                         summary, total_exposure_time = process_image_type(group, imagetype, logger)
                         summary_parts.append(summary)

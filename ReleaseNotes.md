@@ -1,22 +1,17 @@
-# Release Notes - AstroBin Upload Utility v1.4.5
+# Release Notes - AstroBin Upload Utility v1.4.6
 
 ## Overview
-Version 1.4.5 introduces critical robustness fixes, performance optimizations, and enhanced hardware compatibility to ensure a seamless upload experience for AstroBin users. This release focuses on stability in parameter aggregation and significant speed improvements.
+Version 1.4.6 is a major architectural refinement release focused on project stability, maintainability, and data resiliency. By eliminating "magic strings" and hardening numeric processing, this release ensures the utility is more robust than ever against varied and malformed astronomical metadata.
 
 ## Key Highlights
 
-### 🚀 Performance & Speed
-- **Optimized Execution Engine**: Achieved significant speed-ups in header processing and data aggregation through optimized I/O and vectorized Pandas operations, specifically tuned for high-speed RAID 0 storage.
+### 🛡️ Architectural Hardening
+- **Elimination of Magic Strings**: Introduced `constants.py` to centralize all FITS keywords and internal column names. This structural change prevents silent logic failures caused by typos and ensures project-wide consistency.
+- **Robust Numeric Processing**: Upgraded the data pipeline to use centralized numeric hardening. The utility now intelligently handles non-numeric or malformed data in critical fields like GAIN, EGAIN, and coordinates, using `pd.to_numeric` with safe fallbacks.
 
-### 🛠 Critical Fixes
-- **Robust Parameter Aggregation**: Resolved a crash in `aggregate_parameters` by implementing a mandatory column injection system. The utility now intelligently populates missing header data (e.g., `ROTANTANG`) using project defaults.
-- **Clean Session Summaries**: Fixed a bug where missing equipment data resulted in "nan" strings in the text output. The summary now cleanly omits unavailable hardware fields.
-- **Keyword Synchronization**: Standardized internal naming conventions (e.g., `ROTANTANG` vs `ROTATANG`) to ensure configuration and FITS metadata align perfectly.
-
-### ✨ New Features & Enhancements
-- **Dynamic Hardware Overrides**: Added a flexible override system in `config.ini` to handle varied hardware naming conventions (e.g., `SQM` mapping).
-- **IMAGETYP Normalization**: Enhanced logic to handle various capture software naming styles (e.g., "Light Frame") while correctly excluding integrated Master frames.
-- **Live Progress Feedback**: Added real-time console feedback during intensive LIGHT frame processing.
+### 🛠 Fixes & Enhancements
+- **Resilient Data Conversion**: Improved the type conversion engine to automatically fall back to `config.ini` defaults if FITS header data is invalid or missing, preventing aggregation crashes.
+- **Standardized Internal Naming**: Synchronized all internal data structures to ensure perfect alignment between configuration, processing, and output modules.
 
 ## Installation & Usage
 Always use the provided virtual environment:

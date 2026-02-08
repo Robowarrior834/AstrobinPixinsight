@@ -3,8 +3,9 @@ import os
 from io import StringIO
 from typing import Any, Dict, Optional, Tuple
 from configobj import ConfigObj
+from constants import ConfigKeys, FITSKeywords
 
-config_version = '1.4.5'
+config_version = '1.4.6'
 #
 # Date: Sunday 1st February 2026
 # Modification : v1.4.2 Restoration & Logic Overhaul.
@@ -454,14 +455,14 @@ def correct_config(config: ConfigObj, logger: Optional[logging.Logger] = None) -
         reconstruct_config(config, ini_string_config, logger)
 
         # Normalize keys in 'defaults' section
-        if 'defaults' in config:
-            config['defaults'] = {
+        if ConfigKeys.DEFAULTS in config:
+            config[ConfigKeys.DEFAULTS] = {
                 key.upper().replace(' ', ''): value
-                for key, value in config['defaults'].items()
+                for key, value in config[ConfigKeys.DEFAULTS].items()
             }
             logger.info("Normalized keys in 'defaults' section to uppercase without spaces") if logger else None
             # Ensure order and presence of default keys
-            ensure_default_keys_order(config['defaults'], ini_string_config['defaults'], logger)
+            ensure_default_keys_order(config[ConfigKeys.DEFAULTS], ini_string_config[ConfigKeys.DEFAULTS], logger)
 
         # Process 'sites' section
         process_sites_section(config, logger)
@@ -592,29 +593,29 @@ def process_sites_section(config: ConfigObj, logger: Optional[logging.Logger] = 
         ini_string_config = ConfigObj(StringIO(get_default_ini_string(logger)), encoding='utf-8')
 
         # Process sites section if present
-        if 'sites' in config:
+        if ConfigKeys.SITES in config:
             # Iterate over subsections
-            for subsection in list(config['sites'].keys()):
+            for subsection in list(config[ConfigKeys.SITES].keys()):
                 # Strip whitespace from subsection name
                 stripped_subsection = subsection.strip()
                 if stripped_subsection != subsection:
-                    config['sites'][stripped_subsection] = config['sites'].pop(subsection)
+                    config[ConfigKeys.SITES][stripped_subsection] = config[ConfigKeys.SITES].pop(subsection)
                     logger.info(f"Stripped spaces from subsection name: {stripped_subsection}") if logger else None
 
                 # Normalize keys to lowercase without spaces
-                config['sites'][stripped_subsection] = {
+                config[ConfigKeys.SITES][stripped_subsection] = {
                     key.lower().replace(' ', ''): value
-                    for key, value in config['sites'][stripped_subsection].items()
+                    for key, value in config[ConfigKeys.SITES][stripped_subsection].items()
                 }
                 logger.info(f"Normalized keys in subsection: {stripped_subsection}") if logger else None
 
                 # Define required keys and default values
                 required_keys = ['latitude', 'longitude', 'bortle', 'sqm']
                 default_values = {
-                    'latitude': ini_string_config['defaults'].get('SITELAT', 0.0),
-                    'longitude': ini_string_config['defaults'].get('SITELONG', 0.0),
-                    'bortle': ini_string_config['defaults'].get('BORTLE', 4),
-                    'sqm': ini_string_config['defaults'].get('SQM', 20.5)
+                    'latitude': ini_string_config[ConfigKeys.DEFAULTS].get(FITSKeywords.SITE_LAT, 0.0),
+                    'longitude': ini_string_config[ConfigKeys.DEFAULTS].get(FITSKeywords.SITE_LONG, 0.0),
+                    'bortle': ini_string_config[ConfigKeys.DEFAULTS].get(FITSKeywords.BORTLE, 4),
+                    'sqm': ini_string_config[ConfigKeys.DEFAULTS].get(FITSKeywords.SQM, 20.5)
                 }
 
                 # Ensure required keys are present
