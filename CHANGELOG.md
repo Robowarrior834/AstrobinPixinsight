@@ -18,11 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Live Progress Feedback**: Integrated a console counter within the `get_HFR` loop to track progress during LIGHT frame analysis.
 
 ### Fixed
+- **Parameter Aggregation Robustness**: Fixed a regression in `aggregate_parameters` where missing columns (e.g., `ROTANTANG`) would cause a crash. Implemented a mandatory column injection logic that populates missing DataFrame columns using values from the `[defaults]` section of `config.ini`.
+- **Session Summary Formatting**: Resolved an issue where equipment items with missing data were displayed as "nan" in the text summary. Updated `equipment_used` to intelligently filter out "nan", "None", and empty strings.
+- **Keyword Synchronization**: Standardized the use of `ROTANTANG` across the codebase, configuration templates, and data type conversion logic, resolving inconsistencies with `ROTATANG`.
+- **CLI Cleanliness**: Removed diagnostic `print` statements from the core header processing and directory scanning logic to ensure a professional and clean CLI experience.
 - **IMAGETYP Normalization**: Implemented a robust rule to convert any type containing 'light' but NOT 'master' (case-insensitive) to exactly 'LIGHT', ensuring compatibility with varied capture software names while preserving Master frame exclusion.
-- **DATE-OBS Timestamping**: Implemented standard removal of fractional seconds from `DATE-OBS` strings to prevent parsing errors during session aggregation.
-- **Filter Sanitization**: Added automatic `.strip()` to filter names to prevent duplicate acquisition entries caused by trailing white spaces.
-- **Image Type Normalization**: Updated logic to treat `LIGHTFRAME` and `Light Frame` as standard `LIGHT` frames.
-- **Installation Path Resolution**: Resolved a bug where the script failed to find `config.ini` when run for the first time from the root directory.
 
 ### Changed
 - **Session Date Logic**: Refined `USEOBSDATE` parameter handling; when set to `False`, a 5-hour threshold is used to roll early morning images into the previous night's session date.

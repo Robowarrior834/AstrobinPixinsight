@@ -604,7 +604,7 @@ def aggregate_parameters(df: pd.DataFrame, state: Dict) -> pd.DataFrame:
 
             aggregated_df.loc[:, 'rotname'] = aggregated_df['rotname'].astype(str)
 
-            aggregated_df.loc[:, 'rotantang'] = aggregated_df['rotatang'].astype(str)
+            aggregated_df.loc[:, 'rotantang'] = aggregated_df['rotantang'].astype(str)
 
             aggregated_df.loc[:, 'target'] = aggregated_df['target'].astype(str)
 

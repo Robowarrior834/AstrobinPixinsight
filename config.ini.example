@@ -27,7 +27,6 @@
         FWHM = 0
         SWCREATE = Unknown package
         USEOBSDATE = False
-        ROTATANG = 0
 [override]
         SWCREATOR = CREATOR
         EXPOSURE = EXPTIME

@@ -500,9 +500,9 @@ def equipment_used(group: pd.DataFrame, df: pd.DataFrame, logger: logging.Logger
         }
 
         for item, value in equipment_items.items():
-            if pd.notna(value) and value != 'None':
+            if pd.notna(value) and str(value).lower() not in ['none', 'nan', '']:
                 equipment.append(equipment_format.format(item, value))
-        logger.info(f"Equipment details: {', '.join(f'{k}: {v}' for k, v in equipment_items.items() if pd.notna(v) and v != 'None')}")
+        logger.info(f"Equipment details: {', '.join(f'{k}: {v}' for k, v in equipment_items.items() if pd.notna(v) and str(v).lower() not in ['none', 'nan', ''])}")
 
         software_set = set(group['swcreate'].dropna().unique())
         master_types = {'MASTERFLAT', 'MASTERDARKFLAT', 'MASTERBIAS', 'MASTERDARK'}

@@ -213,11 +213,7 @@ def main() -> None:
             # Normalize column names to uppercase to match internal expectations
             headers_df.columns = [c.upper() for c in headers_df.columns]
             
-            print(f"DEBUG: Loaded {len(headers_df)} headers from {test_csv_path}")
             logger.info(f"Loaded {len(headers_df)} headers from {test_csv_path}")
-            
-            if 'IMAGETYP' in headers_df.columns:
-                print(f"DEBUG: Unique IMAGETYP values (pre-conditioning): {headers_df['IMAGETYP'].unique()}")
             
             # Condition headers: Re-runs the normalization pipeline (FWHM, HFR, etc.) on the CSV data
             # to ensure parity with a real directory scan.
@@ -225,10 +221,6 @@ def main() -> None:
             headers_list = headers_df.to_dict('records')
             headers_df = condition_headers(headers_list, headers_state)
             basic_headers = headers_df.copy() # Placeholder for debug export
-            
-            if not headers_df.empty and 'IMAGETYP' in headers_df.columns:
-                light_count = len(headers_df[headers_df['IMAGETYP'] == 'LIGHT'])
-                print(f"DEBUG: Number of 'LIGHT' frames (post-conditioning): {light_count}")
         else:
             # Standard Mode: Recursively scans provided directories for FITS/XISF files.
             headers_df, basic_headers = process_directories(directory_paths, headers_state)

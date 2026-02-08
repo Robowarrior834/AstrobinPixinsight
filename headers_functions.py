@@ -536,7 +536,6 @@ def process_directory(directory: str, state: Dict[str, Any]) -> List[Dict[str, A
         file_paths = []
         # Walk through directory and subdirectories
         for root, _, files in os.walk(directory, followlinks=True):
-            print(f"Processing directory: {root}")
             for file in files:
                 file_path = os.path.join(root, file)
                 # Skip non-FITS/XISF files
@@ -587,7 +586,6 @@ def process_directory(directory: str, state: Dict[str, Any]) -> List[Dict[str, A
 
         # Log number of headers extracted
         logger.info(f"Extracted {len(dir_headers)} headers from directory {directory}")
-        print(f"\nExtracted {len(dir_headers)} headers from directory {directory}\n\n")
         return dir_headers
 
     except Exception as e:
@@ -835,6 +833,15 @@ def condition_headers(headers: List[Dict[str, Any]], state: Dict[str, Any]) -> p
         logger.info("Conditioning headers")
         # Convert headers list to DataFrame
         headers_df = pd.DataFrame(headers)
+
+        # Ensure all columns from [defaults] are present in the DataFrame.
+        # This is critical for both recursive FITS scans and --test CSV mode,
+        # ensuring the aggregator (aggregate_parameters) doesn't crash on missing columns.
+        if 'defaults' in config:
+            for key, default_value in config['defaults'].items():
+                if key not in headers_df.columns:
+                    headers_df[key] = default_value
+                    logger.info(f"Injected missing column '{key}' with default value '{default_value}'")
 
         # Check for empty DataFrame
         if headers_df.empty:
@@ -1436,7 +1443,7 @@ def check_and_convert_data_types(d: Dict[str, Any], state: Dict[str, Any]) -> Di
             'FOCTEMP': float,
             'FWHEEL' : str,
             'ROTNAME': str,
-            'ROTATANG': float
+            'ROTANTANG': float
         }
 
         # Process each key
