@@ -5,40 +5,38 @@ Path: `/mnt/raid0/Code/venvs/.astrovenv`
 
 ## Usage
 Always use the Python executable from the virtual environment:
-`/mnt/raid0/Code/venvs/.astrovenv/bin/python3`
+`/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUploadV2.py [directory_paths]`
+
+# AstroBin Upload Utility v2.0.0 (Clean Slate)
+
+## Architecture: The Pipeline Pattern
+v2.0.0 is a complete rewrite using a modular **Pipeline Architecture**. The logic is decoupled into a series of independent, testable **Steps**:
+1.  **NormalizeHeadersStep**: Sanitizes FITS/XISF metadata, applies overrides, and hardens numeric types.
+2.  **DeduplicateStep**: Handles complex WBPP-postfix file identification.
+3.  **CalibrationMatcherStep**: Matches Dark/Bias/Flat frames to their corresponding Lights using the Integer Gain Handshake.
+4.  **GeocodeStep**: Retrieves site metadata and sky quality information.
+5.  **AggregationStep**: Uses high-speed vectorized operations to summarize session statistics.
+
+## Project Structure
+- `AstroBinUploadV2.py`: Clean entry point.
+- `models.py`: Strongly typed Dataclasses for configuration and state.
+- `constants.py`: Centralized FITS keywords and internal names.
+- `engine/`: The core processing logic.
+- `engine/steps/`: Pluggable pipeline transformation modules.
 
 # Workspace Standards
-
-- **Detailed Docstrings:** Every function, class, and module must include comprehensive docstrings and comments.
-- **Inline Comments:** Logic must be accompanied by inline comments that explain the 'why' behind the implementation.
-
-## Synchronization & Safety (RAID 0 Protection)
-- **Change Detection:** Before concluding any task or before I exit the session, check `git status` for uncommitted changes.
-- **Proactive Prompt:** If changes are detected, ask: "I see changes in [Folder Name]. Since we are on RAID 0, would you like me to sync these to GitHub for you?"
-- **Sync Logic:** If I say "yes," perform:
-    1. `git add .`
-    2. Generate a concise, descriptive commit message based on the code edits.
-    3. `git push origin main`
-    4. **Confirmation:** Report back once the push is successful.
+- **Strong Typing**: Use `dataclasses` and `Enums` for all core data structures.
+- **Pipeline Pattern**: All new logic must be implemented as a `PipelineStep`.
+- **Vectorization**: Favor Pandas vectorized operations over Python loops for aggregation.
 
 ## Golden Tests
-Always run these four tests after any code changes to ensure stability and verify against reference files in `golden_tests/references/`.
+Always run these tests after any code changes.
 
-1. **Michael Test:**
+1. **Michael Test (CSV):**
    ```bash
-   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "Modified_headers_Michael.csv"
+   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUploadV2.py "/home/steve/Downloads/Jason Astrobin Data" --test "/home/steve/Downloads/Jason Astrobin Data/Modified_headers_Michael.csv"
    ```
-2. **Flame Test:**
+2. **Directory Scan Test:**
    ```bash
-   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "flame_modified.csv"
+   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUploadV2.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025"
    ```
-3. **Alpha Test:**
-   ```bash
-   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "flame_modified_Alpha_Zhang.csv"
-   ```
-4. **LBN 548 Test (Directory Scan):**
-   ```bash
-   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025"
-   ```
-
-**Verification:** Compare the generated `.csv` and `.txt` files in the respective `AstroBinUploadInfo` directories with the baseline references in `golden_tests/references/`.

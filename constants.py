@@ -1,12 +1,19 @@
+"""
+Constants Module - AstroBin Upload Utility v2.0.0
 
+This module serves as the single source of truth for all string literals, 
+FITS keywords, and internal data structures. By using typed constants, 
+we eliminate "magic strings," preventing typo-related bugs and ensuring 
+project-wide consistency.
 """
-Constants module for AstroBin Upload Utility.
-Defines central FITS keywords, configuration labels, and internal column names
-to eliminate magic strings and ensure project-wide consistency.
-"""
+
+from enum import Enum
 
 class FITSKeywords:
-    """Standard FITS/XISF header keywords."""
+    """
+    Standard FITS and XISF header keywords used by capture software 
+    (N.I.N.A, SGP, Voyager, etc.).
+    """
     IMAGE_TYPE = 'IMAGETYP'
     EXPOSURE = 'EXPOSURE'
     DATE_OBS = 'DATE-OBS'
@@ -38,66 +45,34 @@ class FITSKeywords:
     NUMBER = 'NUMBER'
     IMSCALE = 'IMSCALE'
 
-class ConfigKeys:
-    """Labels used specifically in config.ini sections."""
+class ConfigSections:
+    """Top-level section headers used in config.ini."""
     DEFAULTS = 'defaults'
     OVERRIDE = 'override'
     FILTERS = 'filters'
     SITES = 'sites'
     SECRET = 'secret'
-    USE_OBS_DATE = 'USEOBSDATE'
 
-class StandardizedKeys:
-    """Lowercase versions of FITS keywords used after column standardization."""
-    IMAGE_TYPE = 'imagetyp'
-    EXPOSURE = 'exposure'
-    DATE_OBS = 'date-obs'
-    XBINNING = 'xbinning'
-    GAIN = 'gain'
-    EGAIN = 'egain'
-    INSTRUMENT = 'instrume'
-    TELESCOPE = 'telescop'
+class InternalColumns:
+    """
+    Standardized internal column names used within the Pandas DataFrames 
+    after normalization and aggregation.
+    """
+    IMAGE_TYPE = 'imagetyp' 
+    DURATION = 'exposure'
+    BINNING = 'xbinning'
+    SENSOR_COOLING = 'ccd-temp'
+    MEAN_FWHM = 'fwhm'
+    F_NUMBER = 'focratio'
+    TEMPERATURE = 'foctemp'
     FOCUSER = 'focname'
     FILTER_WHEEL = 'fwheel'
-    ROTATOR_NAME = 'rotname'
-    ROTATOR_ANGLE = 'rotantang'
-    PIXEL_SIZE = 'xpixsz'
-    CCD_TEMP = 'ccd-temp'
+    TELESCOPE = 'telescop'
+    CAMERA = 'instrume'
+    MEAN_SQM = 'sqm'
     FOCAL_LENGTH = 'focallen'
-    FOCAL_RATIO = 'focratio'
-    SITE = 'site'
-    SITE_LAT = 'sitelat'
-    SITE_LONG = 'sitelong'
-    BORTLE = 'bortle'
-    SQM = 'sqm'
-    FILTER = 'filter'
-    OBJECT = 'object'
-    FOCUSER_TEMP = 'foctemp'
-    HFR = 'hfr'
-    FWHM = 'fwhm'
-    SWCREATE = 'swcreate'
-    FILENAME = 'filename'
-    NUMBER = 'number'
-    IMSCALE = 'imscale'
-
-class InternalNames:
-    """Internal column names used after normalization and aggregation."""
-    IMAGE_TYPE = 'imageType'
-    DURATION = 'duration'
-    BINNING = 'binning'
-    SENSOR_COOLING = 'sensorCooling'
-    MEAN_FWHM = 'meanFwhm'
-    F_NUMBER = 'fNumber'
-    TEMPERATURE = 'temperature'
-    FOCUSER = 'focuser'
-    FILTER_WHEEL = 'filterWheel'
-    TELESCOPE = 'telescope'
-    CAMERA = 'camera'
-    MEAN_SQM = 'meanSqm'
-    FOCAL_LENGTH = 'focalLength'
-    PIXEL_SIZE = 'pixelSize'
-    TARGET = 'target'
-    NUMBER = 'number'
+    PIXEL_SIZE = 'xpixsz'
+    TARGET = 'object'
     SESSIONS = 'sessions'
     START_DATE = 'start_date'
     END_DATE = 'end_date'
@@ -107,16 +82,36 @@ class InternalNames:
     BORTLE = 'bortle'
     ROTATOR_NAME = 'rotname'
     ROTATOR_ANGLE = 'rotantang'
+    FILENAME = 'filename'
+    NUMBER = 'number'
+    DATE_OBS = 'date-obs'
+    SITE_NAME = 'site'
+    FILTER_NAME = 'filter'
+    HFR = 'hfr'
+    IMSCALE = 'imscale'
+    GAIN = 'gain'
+    EGAIN = 'egain'
+    SWCREATE = 'swcreate'
+    TEMP_MIN = 'temp_min'
+    TEMP_MAX = 'temp_max'
+    GAIN_MATCH = 'gain_match'
 
-class ImageTypes:
-    """Normalized Image Type values."""
+class ImageType(str, Enum):
+    """
+    Enumeration of supported astronomical image types.
+    Ensures that type-checking logic is robust and centralized.
+    """
     LIGHT = 'LIGHT'
     FLAT = 'FLAT'
     BIAS = 'BIAS'
     DARK = 'DARK'
-    MASTER_LIGHT = 'MASTER LIGHT'
     MASTER_FLAT = 'MASTERFLAT'
     MASTER_DARK = 'MASTERDARK'
     MASTER_BIAS = 'MASTERBIAS'
     MASTER_DARKFLAT = 'MASTERDARKFLAT'
     DARK_FLAT = 'DARKFLAT'
+
+# Backward compatibility aliases for legacy utility support
+InternalNames = InternalColumns
+StandardizedKeys = InternalColumns 
+ImageTypes = ImageType

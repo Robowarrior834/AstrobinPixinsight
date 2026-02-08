@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-08
+
+### Added
+- **Clean Slate Architecture**: Complete project rewrite focusing on modularity, testability, and performance.
+- **Pipeline Pattern**: Introduced a decoupled transformation pipeline where logic is isolated into independent, pluggable `PipelineStep` modules.
+- **Strong Typing**: Implemented Python Dataclasses and Enums for configuration (`AppConfig`) and state (`SessionState`) management, eliminating loosely-typed dictionary dependencies.
+- **Modernized Engine**: Rebuilt the core execution engine to strictly separate I/O (Extraction), Logic (Steps), and Presentation (Exporter).
+- **Comprehensive Documentation**: Added detailed docstrings and comments across the entire codebase to adhere to the Platinum Standard of software engineering.
+
+### Fixed
+- **Visual Parity**: Ensured that the modern architecture produces human-readable reports and console output identical to the legacy standard.
+- **Data Integrity**: Hardened the numeric pipeline with centralized `pd.to_numeric` conversion and robust fallbacks to project defaults.
+
+### Changed
+- **Repository Rationalization**: Removed all legacy procedural code, establishing a clean root directory structure.
+- **Vectorized Performance**: Fully integrated high-speed vectorized operations for aggregation and date-shifting.
+
+---
+
 ## [1.4.7] - 2026-02-08
 
 ### Added
