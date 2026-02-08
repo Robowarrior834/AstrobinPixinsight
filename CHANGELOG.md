@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **IMAGETYP Normalization**: Implemented a robust rule to convert any type containing 'light' but NOT 'master' (case-insensitive) to exactly 'LIGHT', ensuring compatibility with varied capture software names while preserving Master frame exclusion.
 
 ### Changed
+- **Performance Optimization**: Significantly improved code execution speed by optimizing I/O operations and leveraging vectorized Pandas operations for header conditioning and parameter aggregation, ensuring high-speed compatibility with RAID 0 environments.
 - **Session Date Logic**: Refined `USEOBSDATE` parameter handling; when set to `False`, a 5-hour threshold is used to roll early morning images into the previous night's session date.
 - **Calibration Association**: Modified `modify_lat_long` to ensure Darks/Flats inherit the coordinates of the nearest Light frame to maintain site consistency.
 - **Log Formatting**: Updated `summarize_session` to include total processed image counts and improved temperature statistic alignment.
