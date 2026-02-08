@@ -37,11 +37,11 @@ def main():
         description="AstroBin Upload Utility v2.0.0 - A high-performance ETL pipeline for astronomical metadata.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-  Example Usage:
-  python3 AstroBinUploadV2.py /path/to/my/images
-  python3 AstroBinUploadV2.py /path/to/my/images /path/to/my/calibrationfiles
-  python3 AstroBinUploadV2.py /images /calibration_dir --debug
-  python3 AstroBinUploadV2.py . --test my_headers.csv
+        Example Usage:
+        python3 AstroBinUploadV2.py /path/to/my/images
+        python3 AstroBinUploadV2.py /path/to/my/images /path/to/my/calibrationfiles
+        python3 AstroBinUploadV2.py /images /calibration_dir --debug
+        python3 AstroBinUploadV2.py . --test my_headers.csv
         """
     )
     parser.add_argument(
