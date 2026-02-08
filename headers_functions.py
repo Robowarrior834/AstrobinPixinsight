@@ -1631,10 +1631,16 @@ def get_HFR(df: pd.DataFrame, state: Dict[str, Any]) -> pd.DataFrame:
                 df.loc[index, 'HFR'] = round(hfr, 2)
                 df.loc[index, 'IMSCALE'] = round(imscale, 2)
                 df.loc[index, 'FWHM'] = round(fwhm, 2)
+                
+                # Real-time console feedback
+                print(f"\rProcessing LIGHT frame {counter} of {total_frames}...", end="", flush=True)
                 logger.debug(f"Processed LIGHT frame {counter}/{total_frames}: HFR={hfr:.2f}, IMSCALE={imscale:.2f}, FWHM={fwhm:.2f}")
             except (ValueError, TypeError) as e:
                 # Log error for individual row processing
                 logger.error(f"Error processing HFR for index {index} ({file_path}): {str(e)}")
+
+        if total_frames > 0:
+            print() # New line after progress counter
 
         # Update state with processed frame count
         state['number_of_images_processed'] = counter
