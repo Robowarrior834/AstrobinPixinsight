@@ -1,6 +1,6 @@
 ## **Contents**
 
-- [Features](#features)   
+- - [Features](#features)   
 - [Prerequisites](#prerequisites)    
     - [Installation of the AstroBinUpload.py script](#installation-of-the-astrobinuploadpy-script)
     - [config.ini generation](#configini-generation)
@@ -21,6 +21,7 @@
     - [Single site, 2 panel mosaic, symbolic links to calibration data, use of MASTERFLATS](#example-2-single-site-2-panel-mosaic-symbolic-links-to-calibration-data-use-of-masterflats)
     - [Dual site, structured directory, 2 panel mosaic, use of MASTERCALS](#example-3-dual-site-structured-directory-2-panel-mosaic-use-of-mastercals)
     - [WBPP two-panel mosaic](#example-4-wbpp-two-panel-mosaic)
+- [Troubleshooting & Installation Tips](#troubleshooting--installation-tips)
 - [References](#references)   
     - [AstroBin's Acquisition CSV File Format](#astrobins-acquisition-csv-file-format)
         - [AstroBin's Long Exposure Acquisition Fields](#astrobin-long-exposure-acquisition-fields)
@@ -449,6 +450,34 @@ Note: although data is reported on a per-site basis, data is aggregated from all
 ### Example 4: AstroBin.csv output
 
 <div style="page-break-after: always;"></div>
+
+## **Troubleshooting & Installation Tips**
+
+### **Fixing "ModuleNotFoundError" or "pip: command not found"**
+If you encounter errors stating that a module (like `pandas` or `astropy`) is missing, or if your terminal does not recognize the `pip` command, follow these steps:
+
+#### **On macOS and Linux**
+MacOS often requires you to be explicit about which Python version you are using. If `pip install -r requirements.txt` fails, use the Python module wrapper:
+* **The Recommended Command**: 
+    `python3 -m pip install -r requirements.txt`
+* **Why this works**: This ensures the libraries are installed specifically for the `python3` executable you are using to run the script.
+
+#### **On Windows**
+If `pip` is not recognized, ensure Python is added to your System PATH during installation, or use:
+* `python -m pip install -r requirements.txt`
+
+### **Common FITS/XISF Header Issues**
+* **Missing Keywords**: If the script cannot find specific equipment or location data in your file headers, it will automatically fall back to the values defined in the `[defaults]` section of your `config.ini`.
+* **Non-Standard Keywords**: If your capture software uses unique names for standard data, use the `[override]` section in `config.ini` to map them (e.g., mapping `CAMERA_MODEL` to `INSTRUME`).
+
+### **Sky Quality and Geocoding Failures**
+* **API Errors**: If the script cannot connect to the sky quality or geocoding services, it will default to the `SITE`, `SITELAT`, and `SITELONG` values provided in `config.ini`.
+* **Verification**: Ensure your email address is correctly entered in the `[secrets]` section to allow for successful reverse geocoding requests.
+
+<div style="page-break-after: always;"></div>
+
+
+
 
 # **References**
 
