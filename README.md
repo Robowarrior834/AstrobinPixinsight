@@ -2,13 +2,13 @@
 Scripts to process FITS/XISF headers and create Astrobin data acquisition file and summary text.
 
 Usage:
-`python3 AstroBinUploadV2.py [directory_paths]`
+`python3 AstroBinUpload.py [directory_paths]`
 
 ## **Contents**
 
 - - [Features](#features)   
 - [Prerequisites](#prerequisites)    
-    - [Installation of the AstroBinUploadV2.py script](#installation-of-the-astrobinuploadpy-script)
+    - [Installation of the AstroBinUpload.py script](#installation-of-the-astrobinuploadpy-script)
     - [config.ini generation](#configini-generation)
     - [config.ini contents and editing](#configini-contents-and-editing)
         - [[defaults]](#defaults)
@@ -37,7 +37,7 @@ Usage:
     - [Reverse Geocoding](#reverse-geocoding)
     - [FWHM values](#fwhm-values)
     - [Data Sources](#data-sources )
-- [Contributing to AstroBinUploadV2.py Processing Script](#contributing-to-astrobinuploadpy-processing-script)
+- [Contributing to AstroBinUpload.py Processing Script](#contributing-to-astrobinuploadpy-processing-script)
 - [Contact](#contact)
 - [Licence](#licence)
 
@@ -96,7 +96,7 @@ Key features include:
 
 Before using this script, ensure you have Python 3.x installed. [Python Installation Instructions](https://python.land/installing-python).   
 
-### **Installation of the AstroBinUploadV2.py script**
+### **Installation of the AstroBinUpload.py script**
 
 To install this script, follow these steps:
 
@@ -105,7 +105,7 @@ To install this script, follow these steps:
 2. Clone or download the repository from my [GitHub repository](https://github.com/SteveGreaves/AstroBinUploader)
 
 3. Ensure the following files are in the new directory:
-    - AstroBinUploadV2.py
+    - AstroBinUpload.py
     - utils.py
     - config_functions.py
     - headers_functions.py
@@ -289,8 +289,8 @@ The script is called from the command line. There are three calling methods:
 
 ### **Initialization, no arguments are passed**:  
 
-    Linux/MACOS example: python3 AstroBinUploadV2.py 
-    Windows example:     python  AstroBinUploadV2.py 
+    Linux/MACOS example: python3 AstroBinUpload.py 
+    Windows example:     python  AstroBinUpload.py 
 
 When called with no argument the script will create a new default config.ini file in the local directory and then exit. The user can then edit the config.ini file, using a text editor, before running the script again. If an existing config.ini file is lost and the script run, a new default config.ini file will be created, and the code will exit. Once you have personalized your config.ini file make a backup.
 
@@ -298,19 +298,19 @@ When called with no argument the script will create a new default config.ini fil
 
  Note: only Linux calling examples are used going forward.
 
-    python3 AstroBinUploadV2.py "dir 1" 
+    python3 AstroBinUpload.py "dir 1" 
 
 The script expects to find all data contained in the directory passed to it. Symbolic links can be used as the argument passed to script and can also be present in the directory. The directory leaf or child directory name must be the target name if the output files are to be named correctly. From the processing perspective the only condition required to ensure data is associated with a given target is that all data and links must reside in the one directory.
 
 ### **Multiple directory paths or symbolic links are passed to the script** 
 
-    python3 AstroBinUploadV2.py "dir 1" "dir 2" .... 
+    python3 AstroBinUpload.py "dir 1" "dir 2" .... 
 
 All directory arguments are assumed to belong to one target. Again the first directory leaf, or child directory name should contain the target name for the output files to be named correctly.
 
     ### **Debug output**
 
-    python3 AstroBinUploadV2.py "dir 1" "dir 2" ... --debug
+    python3 AstroBinUpload.py "dir 1" "dir 2" ... --debug
 
 This will dump four processed header files to the AstroBinUploadInfo directory  as .csv files. The files are
 
@@ -323,7 +323,7 @@ These files can be used to assist the debugging of any issues
 
 ### **Diagnostic Test Mode**
 
-    python3 AstroBinUploadV2.py "/path/to/data/dir" --test headers.csv
+    python3 AstroBinUpload.py "/path/to/data/dir" --test headers.csv
 
 You can inject a CSV of headers for diagnostic purposes instead of scanning directories using the `--test` flag. This requires a valid directory path and a filename (e.g., a CSV exported via `--debug` in a previous run). The script will look for the CSV file inside the first directory path provided. Outputs, including the acquisition.csv and summary, will be written to the `AstroBinUploadInfo` folder within that same directory.
 
@@ -332,7 +332,7 @@ You can inject a CSV of headers for diagnostic purposes instead of scanning dire
 The `--test` flag allows developers and users to troubleshoot issues using a `.csv` file (typically `basic_headers.csv` generated via the `--debug` run) without needing access to the raw FITS data. This ensures consistent logic verification across different environments.
 
 Example usage:
-`python3 AstroBinUploadV2.py "/path/to/data" --test "basic_headers.csv"`
+`python3 AstroBinUpload.py "/path/to/data" --test "basic_headers.csv"`
 
 **Note:** The CSV file must reside within the first directory provided in the command line arguments.
 <div style="page-break-after: always;"></div>
@@ -345,7 +345,7 @@ Example usage:
 
 ### Example 1: Directory structure
 
-    python3 AstroBinUploadV2.py "/mnt/HDD_8TB/Preselected/Sadr Region"
+    python3 AstroBinUpload.py "/mnt/HDD_8TB/Preselected/Sadr Region"
 
 
 ### Example 1: Script calling syntax
@@ -375,11 +375,11 @@ The output files being named:
 
 ### Example 2: Directory structure
 
-    python3 AstroBinUploadV2.py '/mnt/HDD_8TB/Preselected/NGC 1499 Mosaic'
+    python3 AstroBinUpload.py '/mnt/HDD_8TB/Preselected/NGC 1499 Mosaic'
     
     or using a symbolic link:
     
-    python3 AstroBinUploadV2.py '/home/steve/Desktop/AstroData/Link to NGC 1499 Mosaic'
+    python3 AstroBinUpload.py '/home/steve/Desktop/AstroData/Link to NGC 1499 Mosaic'
 
 ### Example 2: Script calling syntax
 
@@ -407,7 +407,7 @@ Note: although data is reported on a per-site basis, data is aggregated from all
 
 ### Example 3: Script calling syntax
 
-    python3 AstroBinUploadV2.py "/mnt/HDD_8TB/AstroBinTest/M51"
+    python3 AstroBinUpload.py "/mnt/HDD_8TB/AstroBinTest/M51"
 
 <div style="page-break-after: always;"></div>
 
@@ -439,7 +439,7 @@ Note: although data is reported on a per-site basis, data is aggregated from all
 
 ### Example 4: Directory structure
 
-    python3 AstroBinUploadV2.py "/home/steve/Desktop/Current PixInsight Projects/California Nebula (NGC1499)"
+    python3 AstroBinUpload.py "/home/steve/Desktop/Current PixInsight Projects/California Nebula (NGC1499)"
 
 ### Example 4: Script calling syntax
 
@@ -591,7 +591,7 @@ FIT, FITS and FTS file headers are accessed in the code using [Astropy's FITS he
 To access XISF headers functions were developed based upon the [Pixinsight XISF header specification](https://pixinsight.com/doc/docs/XISF-1.0-spec/XISF-1.0-spec.html#xisf_header).
 
 
-## **Contributing to AstroBinUploadV2.py Processing Script**
+## **Contributing to AstroBinUpload.py Processing Script**
 
 This script is intended for educational purposes in the field of astrophotography. It is part of an open-source project and contributions or suggestions for improvements are welcome.
 

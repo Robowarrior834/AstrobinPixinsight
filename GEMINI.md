@@ -5,7 +5,7 @@ Path: `/mnt/raid0/Code/venvs/.astrovenv`
 
 ## Usage
 Always use the Python executable from the virtual environment:
-`/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUploadV2.py [directory_paths]`
+`/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py [directory_paths]`
 
 # AstroBin Upload Utility v2.0.0 (Clean Slate)
 
@@ -18,7 +18,7 @@ v2.0.0 is a complete rewrite using a modular **Pipeline Architecture**. The logi
 5.  **AggregationStep**: Uses high-speed vectorized operations to summarize session statistics.
 
 ## Project Structure
-- `AstroBinUploadV2.py`: Clean entry point.
+- `AstroBinUpload.py`: Clean entry point.
 - `models.py`: Strongly typed Dataclasses for configuration and state.
 - `constants.py`: Centralized FITS keywords and internal names.
 - `engine/`: The core processing logic.
@@ -34,9 +34,9 @@ Always run these tests after any code changes.
 
 1. **Michael Test (CSV):**
    ```bash
-   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUploadV2.py "/home/steve/Downloads/Jason Astrobin Data" --test "/home/steve/Downloads/Jason Astrobin Data/Modified_headers_Michael.csv"
+   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "/home/steve/Downloads/Jason Astrobin Data/Modified_headers_Michael.csv"
    ```
 2. **Directory Scan Test:**
    ```bash
-   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUploadV2.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025"
+   /mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025"
    ```
