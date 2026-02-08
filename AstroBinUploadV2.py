@@ -26,17 +26,40 @@ from engine.steps.aggregate import AggregationStep
 from engine.exporter import Exporter
 from models import SessionState
 
-# Utilize legacy logging initialization for format consistency
-from legacy.utils import initialise_logging
+# Import logging initialization
+from utils import initialise_logging
 
 def main():
     """
     Main execution loop.
     """
-    parser = argparse.ArgumentParser(description="AstroBin Upload Utility v2.0.0")
-    parser.add_argument('directory_paths', nargs='+', help='Directories to scan for FITS/XISF files')
-    parser.add_argument('--test', type=str, help='Inject a pre-processed CSV of headers')
-    parser.add_argument('--debug', action='store_true', help='Enable verbose debug logging')
+    parser = argparse.ArgumentParser(
+        description="AstroBin Upload Utility v2.0.0 - A high-performance ETL pipeline for astronomical metadata.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example Usage:
+  python3 AstroBinUploadV2.py /path/to/my/images
+  python3 AstroBinUploadV2.py /path/to/my/images /path/to/my/calibrationfiles
+  python3 AstroBinUploadV2.py /images /calibration_dir --debug
+  python3 AstroBinUploadV2.py . --test my_headers.csv
+        """
+    )
+    parser.add_argument(
+        'directory_paths', 
+        nargs='+', 
+        help='One or more directory paths to recursively scan for FITS (.fits, .fit, .fts) or XISF (.xisf) files.'
+    )
+    parser.add_argument(
+        '--test', 
+        type=str, 
+        metavar='CSV_FILE',
+        help='Diagnostic Mode: Instead of scanning disk, inject metadata from a pre-processed CSV file (e.g., exported via --debug). The CSV must reside in the first directory path provided.'
+    )
+    parser.add_argument(
+        '--debug', 
+        action='store_true', 
+        help='Enable verbose debug logging to the AstroBinUploader.log file and preserve intermediate dataframes for troubleshooting.'
+    )
     args = parser.parse_args()
 
     # --- Step 1: Environment Setup ---
