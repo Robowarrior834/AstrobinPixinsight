@@ -21,10 +21,7 @@ The entire codebase has been re-documented to meet the highest engineering stand
 Despite the radical internal changes, version 2.0.0 preserves the user experience you've come to rely on. The console feedback, progress counters, and final session summaries are **visually identical** to the legacy standard.
 
 ## Installation & Usage
-Always use the provided virtual environment:
-```bash
-/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUploadV2.py [directory_paths]
-```
+Please refer to the **README.md** for detailed installation and execution instructions.
 
 ---
 *For a full list of changes, please refer to the CHANGELOG.md.*
