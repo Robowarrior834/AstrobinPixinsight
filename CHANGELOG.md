@@ -28,12 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **AstroBinProcessor Pipeline**: Introduced a centralized `AstroBinProcessor` class in `pipeline.py` to manage application state and orchestrate the ETL workflow. This modularizes the codebase, separating core logic from the CLI entry point.
-- **Constants Management**: Introduced `constants.py` to centralize FITS keywords, configuration labels, and internal column names, eliminating "magic strings" and preventing typo-related logic failures.
 
 ### Changed
 - **Vectorized Performance Overhaul**: Replaced slow iterative loops in session aggregation with optimized Pandas operations (vectorized date shifting). This results in near-instantaneous processing of large datasets compared to previous versions.
-- **Robust FITS Hardening**: Implemented centralized numeric hardening using `pd.to_numeric` across all modules. The utility now handles malformed or non-standard FITS metadata with automated fallbacks to project defaults from `config.ini`.
 - **Structural Cleanup**: Rationalized the repository structure, separating the manager logic (`pipeline.py`) from functional utilities, ensuring long-term maintainability.
+
+---
+
+## [1.4.6] - 2026-02-08
+
+### Changed
+- **Project-Wide Refactoring**: Eliminated "magic strings" by introducing a centralized `constants.py` module. All FITS keywords, configuration labels, and internal column names are now managed via typed constants, significantly improving maintainability and reducing the risk of typo-related regressions.
+- **Robust Numeric Handling**: Implemented centralized numeric hardening for all critical observation parameters (Gain, Exposure, Temperatures, etc.) using `pd.to_numeric`. This ensures the utility gracefully handles malformed or non-standard FITS metadata.
+- **Improved Type Resiliency**: Enhanced data type conversion logic with fallback mechanisms that utilize project defaults from `config.ini` when header data fails validation.
 
 ---
 
