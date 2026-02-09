@@ -74,11 +74,21 @@ class OpticalParameterStep:
             })
 
         # Apply the calculations to the subset of Light frames
-        results = df[mask].apply(extract_metrics, axis=1)
+        total_lights = len(df[mask])
+        results_list = []
         
+        for i, (idx, row) in enumerate(df[mask].iterrows(), 1):
+            results_list.append(extract_metrics(row))
+            print(f"\rProcessing optical metrics: {i} of {total_lights}...", end="", flush=True)
+        
+        if total_lights > 0:
+            print("\n") # Ensure newline after progress completion
+
         # Reintegrate the calculated results into the main dataframe
-        for col in results.columns:
-            df.loc[mask, col] = results[col]
+        if results_list:
+            results = pd.DataFrame(results_list, index=df[mask].index)
+            for col in results.columns:
+                df.loc[mask, col] = results[col]
             
         state.processed_df = df
         return state
