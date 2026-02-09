@@ -1,9 +1,14 @@
 """
 Models Module - AstroBin Upload Utility v2.0.0
 
-Defines the core data structures and state containers using Python Dataclasses.
-This module enforces strong typing throughout the pipeline, ensuring that 
-configuration and session data are well-defined and predictable.
+This module defines the core data structures and state containers used 
+throughout the application. By employing Python Dataclasses and strong 
+typing, we ensure that configuration data and session state are 
+well-defined, predictable, and self-documenting.
+
+Core Components:
+- **AppConfig**: A typed representation of the config.ini settings.
+- **SessionState**: The 'Context' object that flows through the processing pipeline.
 """
 
 from dataclasses import dataclass, field
@@ -13,16 +18,19 @@ import pandas as pd
 @dataclass
 class AppConfig:
     """
-    Strongly typed representation of the config.ini file.
+    Strongly typed representation of the application configuration.
+    
+    This class maps the hierarchical sections of 'config.ini' into a 
+    structured object, facilitating safe access to settings in the pipeline.
     
     Attributes:
-        defaults (Dict): Standard fallback values for missing metadata.
-        overrides (Dict): Custom hardware keyword mappings (Internal -> [Source Keys]).
-        filters (Dict): Map of filter names to AstroBin numeric IDs.
-        sites (Dict): Database of previously geocoded site coordinates.
-        secret (Dict): API keys and contact information for external services.
-        use_obs_date (bool): If True, use actual capture date; if False, use session-start date.
-        precision (int): Decimal precision for coordinate rounding.
+        defaults (Dict[str, Any]): Fallback values for missing metadata (e.g., SITE, BORTLE).
+        overrides (Dict[str, List[str]]): User-defined hardware keyword mappings.
+        filters (Dict[str, Any]): Map of filter names to AstroBin numeric IDs.
+        sites (Dict[str, Dict[str, Any]]): Database of previously geocoded site coordinates.
+        secret (Dict[str, str]): API keys and contact info for external services.
+        use_obs_date (bool): If True, use calendar capture date; if False, shift overnight sessions.
+        precision (int): Decimal precision for coordinate rounding and fuzzy matching.
     """
     defaults: Dict[str, Any]
     overrides: Dict[str, List[str]]
@@ -35,16 +43,18 @@ class AppConfig:
 @dataclass
 class SessionState:
     """
-    State container that flows through the processing pipeline.
+    The state container that flows through the processing pipeline.
     
-    Acts as the 'Context' object, carrying data between independent transformation steps.
+    Acts as the 'Context' object, carrying DataFrames and configuration between 
+    independent transformation steps. This separation of state from logic 
+    is a key feature of the Pipeline Pattern.
     
     Attributes:
         config (AppConfig): The active application configuration.
-        raw_df (pd.DataFrame): Unfiltered header data exactly as read from disk.
-        processed_df (pd.DataFrame): Normalized and cleaned data ready for aggregation.
-        aggregated_df (pd.DataFrame): Session-level statistics grouped for export.
-        total_images_scanned (int): Counter for the number of files processed.
+        raw_df (pd.DataFrame): Unfiltered header data exactly as extracted from files.
+        processed_df (pd.DataFrame): Normalized and cleaned data undergoing transformations.
+        aggregated_df (pd.DataFrame): Final session-level statistics grouped for export.
+        total_images_scanned (int): Running counter for the number of files identified.
     """
     config: AppConfig
     raw_df: pd.DataFrame = field(default_factory=pd.DataFrame)

@@ -2,12 +2,24 @@
 """
 AstroBin Upload Utility v2.0.0 (Clean Slate)
 
-Main entry point for the application. 
-Orchestrates the discovery, extraction, processing, and export of 
-astrophotography session metadata using a modular Pipeline Architecture.
+This is the primary entry point for the application. It orchestrates the 
+entire ETL (Extract, Transform, Load) workflow using a modern Pipeline 
+Architecture.
+
+The utility scans directories for FITS and XISF files, extracts their 
+metadata, normalizes hardware naming variations, matches calibration frames, 
+and generates a finalized acquisition report compatible with AstroBin's 
+bulk upload system.
+
+Architecture:
+- **Modular Steps**: Each logical operation is isolated in the 'engine/steps' directory.
+- **Typed State**: The 'SessionState' object flows through the pipeline, carrying 
+  the data between steps.
+- **Vectorized Logic**: Leveraging Pandas for high-performance data manipulation 
+  suitable for large datasets (1000+ files).
 
 Usage:
-    python3 AstroBinUploadV2.py [directories] [--test csv_file] [--debug]
+    python3 AstroBinUpload.py [directories] [--test csv_file] [--debug]
 """
 
 import argparse
@@ -26,22 +38,26 @@ from engine.steps.aggregate import AggregationStep
 from engine.exporter import Exporter
 from models import SessionState
 
-# Import logging initialization
+# Import custom logging initialization from utils
 from utils import initialise_logging
 
 def main():
     """
     Main execution loop.
+    
+    Orchestrates the environment setup, data discovery, pipeline 
+    configuration, and the final export of reports.
     """
+    # Define and parse CLI arguments
     parser = argparse.ArgumentParser(
         description="AstroBin Upload Utility v2.0.0 - A high-performance ETL pipeline for astronomical metadata.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         Example Usage:
-        python3 AstroBinUploadV2.py /path/to/my/images
-        python3 AstroBinUploadV2.py /path/to/my/images /path/to/my/calibrationfiles
-        python3 AstroBinUploadV2.py /images /calibration_dir --debug
-        python3 AstroBinUploadV2.py . --test my_headers.csv
+        python3 AstroBinUpload.py /path/to/my/images
+        python3 AstroBinUpload.py /path/to/my/images /path/to/my/calibrationfiles
+        python3 AstroBinUpload.py /images /calibration_dir --debug
+        python3 AstroBinUpload.py . --test my_headers.csv
         """
     )
     parser.add_argument(
@@ -53,28 +69,31 @@ def main():
         '--test', 
         type=str, 
         metavar='CSV_FILE',
-        help='Diagnostic Mode: Instead of scanning disk, inject metadata from a pre-processed CSV file (e.g., exported via --debug). The CSV must reside in the first directory path provided.'
+        help='Diagnostic Mode: Instead of scanning disk, inject metadata from a pre-processed CSV file. The CSV must reside in the first directory path provided.'
     )
     parser.add_argument(
         '--debug', 
         action='store_true', 
-        help='Enable verbose debug logging to the AstroBinUploader.log file and preserve intermediate dataframes for troubleshooting.'
+        help='Enable verbose debug logging and preserve intermediate dataframes for troubleshooting.'
     )
     args = parser.parse_args()
 
     # --- Step 1: Environment Setup ---
-    # Normalize paths and establish the primary output directory
+    
+    # Resolve absolute paths to ensure reliable file access
     directory_paths = [os.path.abspath(os.path.expanduser(p)) for p in args.directory_paths]
+    
+    # Establish the primary output directory inside the first target path
     output_dir = os.path.join(directory_paths[0], 'AstroBinUploadInfo')
     os.makedirs(output_dir, exist_ok=True)
 
-    # Initialize the robust logging system
+    # Initialize the centralized logging system
     log_file = os.path.join(output_dir, 'AstroBinUploader.log')
     logger = initialise_logging(log_file)
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
-    # Legacy-compliant console boot sequence
+    # Legacy-compliant console boot sequence for user feedback
     print(f"Output directory: {output_dir}")
     print("Logging initialized.")
     print(f"main version: 2.0.0")
@@ -84,33 +103,42 @@ def main():
     print("Sites state initialized")
 
     # --- Step 2: Configuration & Data Loading ---
-    # Load and normalize config.ini into a typed AppConfig object
+    
+    # Load and normalize config.ini into a strongly-typed AppConfig object
     loader = ConfigLoader(logger)
     config = loader.load("config.ini")
 
-    # Discover and read FITS/XISF files or inject a diagnostic CSV
+    # Metadata Discovery: Scan file system or inject diagnostic CSV
     print('\nReading FITS headers...\n')
     extractor = HeaderExtractor(logger, config)
     if args.test:
+        # Load from CSV for reproducibility and rapid testing
         raw_df = extractor.extract_from_csv(args.test)
     else:
+        # Parallelized scan of all provided directories
         raw_df = extractor.extract_from_directories(directory_paths)
 
     # --- Step 3: Pipeline Configuration ---
-    # Build the transformation pipeline using independent logical Steps
+    
+    # Build the transformation sequence using logical Steps.
+    # The order of these steps is critical as they have data dependencies.
     processor = PipelineProcessor(logger)
-    processor.add_step(NormalizeHeadersStep())    # Initial sanitation
-    processor.add_step(OpticalParameterStep())    # HFR/FWHM/Imscale
-    processor.add_step(DeduplicateStep())         # WBPP filtering
-    processor.add_step(CalibrationMatcherStep())  # Gain Handshake
-    processor.add_step(GeocodeStep())             # Site identification
-    processor.add_step(AggregationStep())         # Vectorized summary
+    processor.add_step(NormalizeHeadersStep())    # Stage 1: Sanitation & Overrides
+    processor.add_step(OpticalParameterStep())    # Stage 2: Resolution & Star Metrics
+    processor.add_step(DeduplicateStep())         # Stage 3: WBPP Filtering
+    processor.add_step(CalibrationMatcherStep())  # Stage 4: Gain Handshake & CAL matching
+    processor.add_step(GeocodeStep())             # Stage 5: Site identification
+    processor.add_step(AggregationStep())         # Stage 6: Vectorized Session Summary
 
     # --- Step 4: Execution & Export ---
-    # Flow the state through the pipeline and generate final reports
+    
+    # Initialize the shared SessionState container
     state = SessionState(config=config, raw_df=raw_df)
+    
+    # Execute the transformation pipeline
     state = processor.run(state)
     
+    # Export the final artifacts (Acquisition CSV and Text Summary)
     output_basename = os.path.basename(args.directory_paths[0]).replace(" ", "_")
     exporter = Exporter(logger)
     exporter.export(state, output_basename, output_dir)

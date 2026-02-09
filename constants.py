@@ -1,49 +1,74 @@
 """
-Centralized constants for AstroBin Upload Utility v2.0.0.
+Centralized Constants Module - AstroBin Upload Utility v2.0.0
+
+This module serves as the single source of truth for all literal strings, 
+column names, and configuration keys used throughout the application. 
+By centralizing these values, we ensure consistency across the extraction, 
+transformation, and export phases of the pipeline.
 """
 
 from enum import Enum
 
 class FITSKeywords:
-    IMAGE_TYPE = 'IMAGETYP'
-    EXPOSURE = 'EXPOSURE'
-    DATE_OBS = 'DATE-OBS'
-    XBINNING = 'XBINNING'
-    GAIN = 'GAIN'
-    EGAIN = 'EGAIN'
-    INSTRUMENT = 'INSTRUME'
-    TELESCOPE = 'TELESCOP'
-    FOCUSER = 'FOCNAME'
-    FILTER_WHEEL = 'FWHEEL'
-    ROTATOR_NAME = 'ROTNAME'
-    ROTATOR_ANGLE = 'ROTANTANG'
-    PIXEL_SIZE = 'XPIXSZ'
-    CCD_TEMP = 'CCD-TEMP'
-    FOCAL_LENGTH = 'FOCALLEN'
-    FOCAL_RATIO = 'FOCRATIO'
-    SITE = 'SITE'
-    SITE_LAT = 'SITELAT'
-    SITE_LONG = 'SITELONG'
-    BORTLE = 'BORTLE'
-    SQM = 'SQM'
-    FILTER = 'FILTER'
-    OBJECT = 'OBJECT'
-    FOCUSER_TEMP = 'FOCTEMP'
-    HFR = 'HFR'
-    FWHM = 'FWHM'
-    SWCREATE = 'SWCREATE'
-    FILENAME = 'FILENAME'
-    NUMBER = 'NUMBER'
-    IMSCALE = 'IMSCALE'
+    """
+    Standard FITS Header Keywords.
+    
+    These constants represent the keys used when searching for metadata 
+    within FITS/XISF files. They are typically uppercase as per the 
+    FITS standard.
+    """
+    IMAGE_TYPE = 'IMAGETYP'    # Type of frame (LIGHT, DARK, etc.)
+    EXPOSURE = 'EXPOSURE'      # Exposure time in seconds
+    DATE_OBS = 'DATE-OBS'      # Observation timestamp
+    XBINNING = 'XBINNING'      # Binning factor (e.g., 1x1, 2x2)
+    GAIN = 'GAIN'              # Camera gain (can be unitless or dB)
+    EGAIN = 'EGAIN'            # Electronic gain (e/ADU)
+    INSTRUMENT = 'INSTRUME'    # Camera name
+    TELESCOPE = 'TELESCOP'     # Telescope description
+    FOCUSER = 'FOCNAME'        # Focuser hardware name
+    FILTER_WHEEL = 'FWHEEL'    # Filter wheel name
+    ROTATOR_NAME = 'ROTNAME'   # Rotator name
+    ROTATOR_ANGLE = 'ROTANTANG' # Rotator mechanical angle
+    PIXEL_SIZE = 'XPIXSZ'      # Pixel size in microns
+    CCD_TEMP = 'CCD-TEMP'      # Sensor temperature in Celsius
+    FOCAL_LENGTH = 'FOCALLEN'  # Optical focal length in mm
+    FOCAL_RATIO = 'FOCRATIO'   # Optical f-number (e.g., 5.0)
+    SITE = 'SITE'              # Geographical site name
+    SITE_LAT = 'SITELAT'       # Site latitude (decimal degrees)
+    SITE_LONG = 'SITELONG'     # Site longitude (decimal degrees)
+    BORTLE = 'BORTLE'          # Bortle Scale (1-9)
+    SQM = 'SQM'                # Sky Quality Meter reading (mag/arcsec^2)
+    FILTER = 'FILTER'          # Active filter name
+    OBJECT = 'OBJECT'          # Imaging target name
+    FOCUSER_TEMP = 'FOCTEMP'   # Ambient/Focuser temperature
+    HFR = 'HFR'                # Half Flux Radius (star size measure)
+    FWHM = 'FWHM'              # Full Width at Half Maximum
+    SWCREATE = 'SWCREATE'      # Capture software name
+    FILENAME = 'FILENAME'      # Original filename for traceability
+    NUMBER = 'NUMBER'          # Count of sub-exposures (for Master frames)
+    IMSCALE = 'IMSCALE'        # Image scale (arcsec/pixel)
 
 class ConfigSections:
-    DEFAULTS = 'defaults'
-    OVERRIDE = 'override'
-    FILTERS = 'filters'
-    SITES = 'sites'
-    SECRET = 'secret'
+    """
+    INI Configuration Section Names.
+    
+    Identifies the primary blocks within config.ini to prevent string 
+    fragmentation in the ConfigLoader.
+    """
+    DEFAULTS = 'defaults'      # Standard fallback values
+    OVERRIDE = 'override'      # User-defined keyword remapping
+    FILTERS = 'filters'        # AstroBin filter code database
+    SITES = 'sites'            # Local site coordinates database
+    SECRET = 'secret'          # API keys and private data
 
 class InternalColumns:
+    """
+    Internal Normalized Column Names.
+    
+    The pipeline converts all raw FITS/CSV headers into these lowercase 
+    identifiers. This isolation layer allows the processing logic to 
+    remain agnostic of the source file's naming conventions.
+    """
     IMAGE_TYPE = 'imagetyp' 
     DURATION = 'exposure'
     BINNING = 'xbinning'
@@ -80,10 +105,15 @@ class InternalColumns:
     SWCREATE = 'swcreate'
     TEMP_MIN = 'temp_min'
     TEMP_MAX = 'temp_max'
-    GAIN_MATCH = 'gain_match'
+    GAIN_MATCH = 'gain_match'  # Used for Integer Gain Handshake
 
 class ImageType(str, Enum):
-    """Normalized Image Type values."""
+    """
+    Normalized Image Type enumeration.
+    
+    Standardizes the chaotic variety of IMAGETYP values found in the 
+    wild (e.g., 'Light Frame', 'light', 'LIGHT') into predictable constants.
+    """
     LIGHT = 'LIGHT'
     FLAT = 'FLAT'
     BIAS = 'BIAS'
@@ -95,7 +125,7 @@ class ImageType(str, Enum):
     MASTER_DARKFLAT = 'MASTERDARKFLAT'
     DARK_FLAT = 'DARKFLAT'
 
-# Backward compatibility aliases
+# Backward compatibility aliases for legacy module support
 InternalNames = InternalColumns
 StandardizedKeys = InternalColumns 
 ImageTypes = ImageType

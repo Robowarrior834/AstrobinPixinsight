@@ -1,7 +1,10 @@
 """
 General Utility Module - AstroBin Upload Utility v2.0.0
 
-Provides logging initialization and common helper functions for the application.
+Provides shared infrastructure for the application, including a robust 
+logging system and common helper functions. This module ensures that 
+errors and process milestones are captured with sufficient context 
+(file names, function names, and line numbers).
 """
 
 import logging
@@ -12,29 +15,35 @@ from datetime import datetime
 from typing import Tuple, Union, Optional
 import numpy as np
 
-# Version tracking for internal consistency
+# Version tracking for internal consistency across the utility suite
 utils_version = '2.0.0'
 
 def initialise_logging(log_filename: str, logger: logging.Logger = None) -> logging.Logger:
     """
-    Initializes a robust logging system that captures function names and line numbers.
+    Initializes a professional logging system with automatic context resolution.
     
-    This logger:
-    1. Creates the log directory if it doesn't exist.
-    2. Clears previous session logs to keep files concise.
-    3. Uses a custom 'FunctionNameFilter' to resolve the true calling function.
-    4. Sets up a FileHandler with UTF-8 encoding.
+    This logger includes:
+    1.  **Context Filtering**: Automatically identifies the calling function 
+        and line number, even when called through wrappers.
+    2.  **Session Isolation**: Truncates the previous log to ensure each 
+        run is clear and concise.
+    3.  **Directory Handling**: Proactively creates the log directory if missing.
 
     Args:
-        log_filename (str): The absolute path where the log file will be stored.
-        logger (logging.Logger, optional): Pre-initialization logger for boot errors.
+        log_filename (str): The absolute path for the log file.
+        logger (logging.Logger, optional): A preliminary logger for boot errors.
 
     Returns:
-        logging.Logger: The configured application logger.
+        logging.Logger: The configured application-level logger.
     """
     class FunctionNameFilter(logging.Filter):
+        """
+        Custom filter to inject the true calling function name into log records.
+        Useful for tracing logic flow across the modular pipeline steps.
+        """
         def filter(self, record):
             stack = inspect.stack()
+            # Traverse the stack to find the first frame outside this module and logging internals
             for frame_info in stack:
                 if frame_info.filename != __file__ and 'logging' not in frame_info.filename:
                     record.funcname = frame_info.function
@@ -44,18 +53,21 @@ def initialise_logging(log_filename: str, logger: logging.Logger = None) -> logg
             return True
 
     try:
+        # Ensure the destination folder exists
         log_dir = os.path.dirname(log_filename)
         if log_dir and not os.path.exists(log_dir):
             os.makedirs(log_dir, exist_ok=True)
 
-        # Truncate existing log to start fresh
+        # Truncate existing log to start fresh for the current session
         with open(log_filename, 'w', encoding='utf-8') as f:
             f.write('')
 
+        # Create or retrieve the named logger
         new_logger = logging.getLogger("AstroBinV2")
-        new_logger.handlers.clear()
+        new_logger.handlers.clear() # Prevent duplicate handlers in interactive environments
         new_logger.setLevel(logging.INFO)
 
+        # Configure File Handler with UTF-8 support for astronomical symbols
         handler = logging.FileHandler(log_filename, encoding='utf-8')
         formatter = logging.Formatter(
             '%(asctime)s - %(funcname)s - Line: %(lineno)d - %(levelname)s - %(message)s',
@@ -65,9 +77,10 @@ def initialise_logging(log_filename: str, logger: logging.Logger = None) -> logg
         handler.addFilter(FunctionNameFilter())
         new_logger.addHandler(handler)
 
-        new_logger.info("Logging initialized successfully.")
+        new_logger.info("Logging system initialized successfully.")
         return new_logger
 
     except Exception as e:
-        print(f"CRITICAL: Failed to initialize logging: {e}")
+        # Fallback to a basic console logger if file initialization fails
+        print(f"CRITICAL ERROR: Failed to initialize logging: {e}")
         return logging.getLogger()

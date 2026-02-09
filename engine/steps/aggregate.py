@@ -1,5 +1,17 @@
 """
-Vectorized aggregation engine.
+Vectorized Aggregation Engine - AstroBin Upload Utility v2.0.0
+
+This module implements the final transformation stage of the pipeline: 
+Summarizing hundreds or thousands of individual frame headers into a 
+concise set of session-level statistics. 
+
+It utilizes high-speed Pandas vectorized operations for:
+1.  **Temporal Analysis**: Identifying discrete observation sessions based 
+    on time gaps.
+2.  **Date Shifting**: Normalizing overnight sessions into single logical 
+    observation dates.
+3.  **Statistical Aggregation**: Calculating mean temperatures, FWHM, and 
+    summing total exposure counts.
 """
 
 import pandas as pd
@@ -8,21 +20,38 @@ from models import SessionState
 from constants import ImageType, InternalColumns
 
 class AggregationStep:
+    """
+    Groups and summarizes the processed metadata into export-ready session stats.
+    """
     def execute(self, state: SessionState) -> SessionState:
+        """
+        Executes the aggregation logic on the processed dataframe.
+        
+        Args:
+            state (SessionState): The current pipeline state.
+            
+        Returns:
+            SessionState: The state with populated aggregated_df.
+        """
         df = state.processed_df
         if df.empty: return state
 
-        # 1. Date Shifting (Vectorized)
+        # --- Stage 1: Temporal Normalization ---
+
+        # Ensure observation dates are proper datetime objects for vectorized math
         df[InternalColumns.DATE_OBS] = pd.to_datetime(df[InternalColumns.DATE_OBS], errors='coerce')
         df = df.sort_values(InternalColumns.DATE_OBS).reset_index(drop=True)
         
-        # GLOBAL SESSION CALCULATION (based on Lights)
+        # Identify GLOBAL session statistics based exclusively on Light frames
         lights_mask = df[InternalColumns.IMAGE_TYPE] == ImageType.LIGHT.value
         lights = df[lights_mask].copy()
         
         if not lights.empty:
+            # Session Detection: Any gap larger than 5 hours indicates a new session
             time_diff = lights[InternalColumns.DATE_OBS].diff()
             session_count = (time_diff > pd.Timedelta(hours=5)).cumsum().max() + 1
+            
+            # Temporal Bounds
             start_date = lights[InternalColumns.DATE_OBS].min().strftime('%Y-%m-%d')
             end_date = lights[InternalColumns.DATE_OBS].max().strftime('%Y-%m-%d')
             num_days = (lights[InternalColumns.DATE_OBS].max().date() - lights[InternalColumns.DATE_OBS].min().date()).days + 1
@@ -32,12 +61,16 @@ class AggregationStep:
             end_date = "N/A"
             num_days = 0
 
-        # Custom Overnight Date Shifting
+        # --- Stage 2: Overnight Date Shifting ---
+        
+        # If use_obs_date is False, we shift frames taken after midnight to the 
+        # previous day's date so they appear as part of a single continuous night.
         if not state.config.use_obs_date:
             time_diff = df[InternalColumns.DATE_OBS].diff()
             session_ids = (time_diff > pd.Timedelta(hours=5)).cumsum()
             
             def calculate_ref_date(ts):
+                # If taken before noon, it belongs to the previous calendar day
                 if ts.time() < pd.Timestamp("12:00:00").time():
                     return (ts - timedelta(days=1)).date()
                 return ts.date()
@@ -45,36 +78,48 @@ class AggregationStep:
             session_starts = df.groupby(session_ids)[InternalColumns.DATE_OBS].transform('first')
             df['session_date'] = session_starts.apply(calculate_ref_date)
         else:
+            # Otherwise, use the actual calendar date of capture
             df['session_date'] = df[InternalColumns.DATE_OBS].dt.date
 
-        # Broadcast global values
+        # Broadcast global session values to all rows for inclusion in final aggregation
         df[InternalColumns.SESSIONS] = session_count
-        df[InternalColumns.START_DATE] = start_date
-        df[InternalColumns.END_DATE] = end_date
+        df[InternalColumns.START_DATE] = str(start_date)
+        df[InternalColumns.END_DATE] = str(end_date)
         df[InternalColumns.NUM_DAYS] = num_days
 
-        # Progress Counter for console feedback
+        # Ensure dates are strings to prevent formatting issues in reports
+        df[InternalColumns.START_DATE] = df[InternalColumns.START_DATE].astype(str)
+        df[InternalColumns.END_DATE] = df[InternalColumns.END_DATE].astype(str)
+
+        # Progress feedback for long-running aggregations
         if not lights.empty:
             total_lights = len(lights)
             for i in range(1, total_lights + 1):
                 print(f"\rProcessing LIGHT frame {i} of {total_lights}...", end="", flush=True)
             print("\n")
 
-        # 2. Group and Aggregate
+        # --- Stage 3: Aggregation ---
+
+        # Define the primary keys for grouping data
         agg_cols = [
-            InternalColumns.SITE_NAME, 'session_date', InternalColumns.IMAGE_TYPE, 
-            InternalColumns.FILTER_NAME, InternalColumns.GAIN_MATCH, 
-            InternalColumns.BINNING, InternalColumns.DURATION, InternalColumns.TARGET
+            InternalColumns.SITE_NAME, 
+            'session_date', 
+            InternalColumns.IMAGE_TYPE, 
+            InternalColumns.FILTER_NAME, 
+            InternalColumns.GAIN_MATCH, # Grouping by gain result of the handshake
+            InternalColumns.BINNING, 
+            InternalColumns.DURATION, 
+            InternalColumns.TARGET
         ]
         
-        # Normalize missing group data to avoid NaN-group drop
+        # Prevent "Lossy Aggregation" by filling missing grouping keys
         for col in agg_cols:
             if col not in df.columns:
                 df[col] = "None"
             else:
                 df[col] = df[col].fillna("None")
 
-        # Numeric conversion for agg rules
+        # Ensure all numeric columns are strictly typed before mathematical aggregation
         numeric_agg_cols = [
             InternalColumns.SENSOR_COOLING, InternalColumns.MEAN_FWHM, 
             InternalColumns.SITE_LAT, InternalColumns.SITE_LONG, 
@@ -86,8 +131,9 @@ class AggregationStep:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
 
+        # Define the reduction rules for each column
         rules = {
-            InternalColumns.NUMBER: (InternalColumns.DATE_OBS, 'count'),
+            InternalColumns.NUMBER: (InternalColumns.NUMBER, 'sum'),
             InternalColumns.SENSOR_COOLING: (InternalColumns.SENSOR_COOLING, 'mean'),
             InternalColumns.TEMP_MIN: (InternalColumns.TEMPERATURE, 'min'),
             InternalColumns.TEMP_MAX: (InternalColumns.TEMPERATURE, 'max'),
@@ -118,5 +164,6 @@ class AggregationStep:
             'bias': ('bias', 'max')
         }
 
+        # Perform the actual vectorized aggregation
         state.aggregated_df = df.groupby(agg_cols, observed=True).agg(**rules).reset_index()
         return state

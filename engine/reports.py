@@ -1,6 +1,13 @@
 """
-Reporting engine for generating human-readable session summaries.
-Restores the high-quality formatting from legacy v1.4.x.
+Reporting Module - AstroBin Upload Utility v2.0.0
+
+This module is responsible for transforming aggregated session data into a 
+highly detailed, human-readable text report. It mirrors the high-quality 
+formatting standards established in legacy versions, providing a clear 
+overview of equipment, environmental conditions, and exposure statistics.
+
+The generator supports multi-site sessions and complex mosaics by 
+intelligently grouping frames by site, target, and image type.
 """
 
 import logging
@@ -10,11 +17,23 @@ from datetime import datetime
 from constants import ImageType, InternalColumns
 
 def seconds_to_hms(seconds: Union[int, float], logger: logging.Logger, aligned: bool = False) -> str:
-    """Converts a duration in seconds into HH:MM:SS format."""
+    """
+    Converts a raw duration in seconds into a formatted HH:MM:SS string.
+
+    Args:
+        seconds (float): Total seconds to convert.
+        logger (logging.Logger): Application logger for error handling.
+        aligned (bool): If True, uses fixed-width padding for tabular display.
+
+    Returns:
+        str: Formatted string (e.g., "1 hrs 30 mins 15.00 secs").
+    """
     try:
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         secs = float(seconds % 60)
+        
+        # Aligned formatting is used within the ASCII tables for vertical consistency
         if aligned:
             return f"{hours:>6} hrs {minutes:>6} mins {secs:>6.2f} secs"
         return f"{hours} hrs {minutes} mins {secs:.2f} secs"
@@ -22,26 +41,51 @@ def seconds_to_hms(seconds: Union[int, float], logger: logging.Logger, aligned: 
         return "0 hrs 0 mins 0.00 secs"
 
 def get_target_details(group: pd.DataFrame, logger: logging.Logger) -> str:
-    """Restores legacy target identification (first target unless panel mosaic)."""
+    """
+    Identifies and formats the imaging target name from a group of frames.
+    
+    Includes specific logic for detecting mosaics based on 'Panel' keywords 
+    in the target names.
+
+    Args:
+        group (pd.DataFrame): Dataframe containing a subset of Light frames.
+        logger (logging.Logger): Application logger.
+
+    Returns:
+        str: Formatted target name string.
+    """
     target_format = " Target: {}"
     if group.empty: return target_format.format("No target data")
     
+    # Extract unique target names, dropping NaNs
     unique_targets = group[InternalColumns.TARGET].dropna().unique()
     
-    # Legacy Mosaic Detection
+    # Mosaic Detection: If multiple targets contain 'Panel', summarize as a mosaic
     panels = [str(t) for t in unique_targets if 'Panel' in str(t)]
     if panels:
+        # Extract the base name (e.g., 'M31' from 'M31 Panel 1')
         base_name = panels[0].split('Panel')[0].strip()
         return target_format.format(f"{base_name} {len(panels)} Panel Mosaic")
     
-    # Legacy default: Return the FIRST identified target
+    # Default behavior: Return the first target found in the group
     return target_format.format(unique_targets[0] if len(unique_targets) > 0 else "Unknown")
 
 def get_equipment_used(group: pd.DataFrame, df: pd.DataFrame, logger: logging.Logger) -> str:
-    """Restores detailed equipment inventory list."""
+    """
+    Constructs a list of hardware and software used during the session.
+
+    Args:
+        group (pd.DataFrame): Subset of Light frames for hardware extraction.
+        df (pd.DataFrame): Full session dataframe for software version extraction.
+        logger (logging.Logger): Application logger.
+
+    Returns:
+        str: Multiline string containing the equipment list.
+    """
     s = ["\nEquipment used:"]
     fmt = "\t{:<20}: {}"
     
+    # Mapping of labels to internal column names
     items = {
         'Telescope': InternalColumns.TELESCOPE,
         'Camera': InternalColumns.CAMERA,
@@ -50,31 +94,42 @@ def get_equipment_used(group: pd.DataFrame, df: pd.DataFrame, logger: logging.Lo
         'Rotator': InternalColumns.ROTATOR_NAME
     }
     
-    # Extract hardware names from the first light frame
+    # Extract hardware names from the first light frame (assumes static hardware per target)
     for label, col in items.items():
         if col in group.columns:
             val = group[col].iloc[0]
             if pd.notna(val) and str(val).lower() not in ['none', 'nan', '']:
                 s.append(fmt.format(label, val))
             
-    # Software extraction
+    # Software version extraction: Collect all unique software strings found across all files
     sw_set = set(group[InternalColumns.SWCREATE].dropna().unique())
     sw_set.update(df[InternalColumns.SWCREATE].dropna().unique())
     
     if sw_set:
+        # Sort so that the 'main' software usually appears first
         sw_list = sorted(list(sw_set), reverse=True) 
         s.append(fmt.format("Capture software", sw_list.pop(0)))
+        # List additional software modules indented underneath
         for item in sw_list:
             s.append(fmt.format("", item))
             
     return "\n".join(s) + "\n"
 
 def get_observation_period(group: pd.DataFrame, logger: logging.Logger) -> str:
-    """Restores dates and temperature statistics."""
+    """
+    Summarizes the dates, session counts, and temperature ranges.
+
+    Args:
+        group (pd.DataFrame): Subset of Light frames.
+        logger (logging.Logger): Application logger.
+
+    Returns:
+        str: Formatted observation period summary.
+    """
     s = ["\nObservation period:"]
     fmt = "\t{:<25}: {}"
     
-    # Broadcasted session statistics
+    # Extract pre-calculated session statistics from the broadcasted columns
     start = group[InternalColumns.START_DATE].iloc[0] if InternalColumns.START_DATE in group.columns else "N/A"
     end = group[InternalColumns.END_DATE].iloc[0] if InternalColumns.END_DATE in group.columns else "N/A"
     days = group[InternalColumns.NUM_DAYS].iloc[0] if InternalColumns.NUM_DAYS in group.columns else 0
@@ -85,6 +140,7 @@ def get_observation_period(group: pd.DataFrame, logger: logging.Logger) -> str:
     s.append(fmt.format("Days", int(days)))
     s.append(fmt.format("Observation sessions", int(sessions)))
     
+    # Temperature Statistics
     if InternalColumns.TEMP_MIN in group.columns:
         s.append(fmt.format("Min temperature", f"{group[InternalColumns.TEMP_MIN].min():.1f}\u00B0C"))
         s.append(fmt.format("Max temperature", f"{group[InternalColumns.TEMP_MAX].max():.1f}\u00B0C"))
@@ -92,23 +148,41 @@ def get_observation_period(group: pd.DataFrame, logger: logging.Logger) -> str:
     
     return "\n".join(s) + "\n"
 
-def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging.Logger) -> Tuple[str, float]:
+def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging.Logger, light_filters: set = None) -> Tuple[str, float]:
     """
-    Builds the tabular representation of frame counts and exposures for a specific image type.
-    Aggregates rows by Filter, Gain, and Exposure to consolidate sessions into a single view.
+    Constructs an ASCII table summarizing frame counts and exposures for a specific type.
+    
+    For Light frames, data is grouped by target and filter. 
+    For Calibration frames, data is consolidated by filter and gain.
+
+    Args:
+        group (pd.DataFrame): The full site-level dataframe.
+        imagetype (str): The specific ImageType to format (e.g., 'LIGHT', 'FLAT').
+        logger (logging.Logger): Application logger.
+        light_filters (set, optional): Set of filter names used in Light frames.
+
+    Returns:
+        Tuple[str, float]: (The formatted ASCII table, Total exposure time in seconds).
     """
     lines = []
     total_exposure = 0.0
     
+    # Filter for the specific image type requested
     image_group = group[group[InternalColumns.IMAGE_TYPE] == imagetype].copy()
+    
+    # Calibration Filtering: Only show Flats/Calibration for filters that were actually used for Lights
+    # This prevents clutter from calibration files that don't belong to the current session.
+    if light_filters is not None and "FLAT" in imagetype.upper():
+        image_group = image_group[image_group[InternalColumns.FILTER_NAME].astype(str).str.lower().isin(light_filters)]
+
     if image_group.empty: return "", 0.0
 
-    # Define common grouping keys for the summary table
+    # Common grouping keys for the summary table
     table_group_keys = [InternalColumns.FILTER_NAME, InternalColumns.GAIN_MATCH, InternalColumns.DURATION]
 
     if imagetype == ImageType.LIGHT.value:
         lines.append(f"\n {imagetype}S:")
-        # Categorize by individual Target
+        # Lights are grouped by Target first
         for target, t_group in image_group.groupby(InternalColumns.TARGET, observed=True):
             lines.append(f" Target: {target}\n")
             header = " {:<8} {:<8} {:<8} {:<12} {:<12} {:<12} {:<12} {:<15} {:<15}"
@@ -116,7 +190,7 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
             
             t_exposure_target = 0.0
             
-            # Sub-aggregate by filter/gain/exposure within the target
+            # Aggregate stats across multiple sessions/nights for this specific target
             summary_agg = t_group.groupby(table_group_keys, observed=True).agg({
                 InternalColumns.NUMBER: 'sum',
                 InternalColumns.EGAIN: 'mean',
@@ -129,6 +203,7 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
                 row_total_exposure = row[InternalColumns.NUMBER] * row[InternalColumns.DURATION]
                 t_exposure_target += row_total_exposure
                 
+                # Format gain into dB (integer stored internally as gain*10)
                 gain_str = f"{float(row[InternalColumns.GAIN_MATCH]) * 0.1:.2f} dB"
                 egain_str = f"{float(row[InternalColumns.EGAIN]):.2f} e/ADU"
                 
@@ -140,8 +215,9 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
             lines.append(f"\n Exposure time for {target}: {seconds_to_hms(t_exposure_target, logger)}\n")
             total_exposure += t_exposure_target
     else:
-        # Calibration Frames: Consolidate by filter/gain/exposure
-        lines.append(f"\n {imagetype}S:\n")
+        # Calibration Frames: Consolidate by filter/gain/exposure (no target grouping)
+        label = imagetype if str(imagetype).upper().endswith('S') else f"{imagetype}S"
+        lines.append(f"\n {label}:\n")
         header = " {:<10} {:<8} {:<10} {:<15} {:<12} {:<15}"
         lines.append(header.format("Filter", "Frames", "Gain", "Egain", "Exposure", "Total Exposure"))
         
@@ -153,8 +229,10 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
         for _, row in summary_agg.iterrows():
             row_total_exposure = row[InternalColumns.NUMBER] * row[InternalColumns.DURATION]
             total_exposure += row_total_exposure
+            
             gain_str = f"{float(row[InternalColumns.GAIN_MATCH]) * 0.1:.2f} dB"
             egain_str = f"{float(row[InternalColumns.EGAIN]):.2f} e/ADU"
+            
             lines.append(header.format(
                 str(row[InternalColumns.FILTER_NAME]), int(row[InternalColumns.NUMBER]), gain_str, egain_str,
                 f"{row[InternalColumns.DURATION]:.2f} secs", seconds_to_hms(row_total_exposure, logger, aligned=True)
@@ -163,30 +241,48 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
     return "\n".join(lines), total_exposure
 
 def generate_full_summary(df: pd.DataFrame, logger: logging.Logger, total_scanned: int) -> str:
-    """The main entry point for summary generation, mirroring v1.4.x behavior."""
-    if df.empty: return "No data available."
+    """
+    Orchestrates the generation of the full multi-site session report.
+    
+    This is the primary entry point for the reporting engine. It iterates through 
+    sites, generates equipment and observation summaries, and builds detail 
+    tables for every image type found.
+
+    Args:
+        df (pd.DataFrame): The fully aggregated session dataframe.
+        logger (logging.Logger): Application logger.
+        total_scanned (int): Total count of raw files identified on disk.
+
+    Returns:
+        str: The complete, formatted text report.
+    """
+    if df.empty: return "No data available for reporting."
     
     report = []
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     report.append(f"Observation session summary\nGenerated {now}")
     
+    # Iterate through each Site found in the session
     for site, site_group in df.groupby(InternalColumns.SITE_NAME, observed=True):
         lights = site_group[site_group[InternalColumns.IMAGE_TYPE] == ImageType.LIGHT.value]
-        if lights.empty: continue
+        if lights.empty: continue # Skip sites that only have calibration frames
         
+        # Determine unique filters for the light frames to filter irrelevant calibration data
+        light_filters = set(lights[InternalColumns.FILTER_NAME].astype(str).str.lower().unique())
+        
+        # 1. Target and Site Metadata
         report.append(get_target_details(lights, logger))
-        
-        # Site Metadata Section
         report.append(f"\nSite: {site}")
         report.append(f"\tLatitude: {site_group[InternalColumns.SITE_LAT].iloc[0]:.4f}\u00B0")
         report.append(f"\tLongitude: {site_group[InternalColumns.SITE_LONG].iloc[0]:.4f}\u00B0")
         report.append(f"\tBortle scale: {site_group[InternalColumns.BORTLE].iloc[0]:.1f}")
         report.append(f"\tSQM: {site_group[InternalColumns.MEAN_SQM].iloc[0]:.2f} mag/arcsec²")
         
+        # 2. Hardware and Temporal Summaries
         report.append(get_equipment_used(lights, df, logger))
         report.append(get_observation_period(lights, logger))
         
-        # Sequentially process and format each Image Type section
+        # 3. Formatted Data Tables (Ordered by importance)
         order = [
             ImageType.LIGHT.value, 
             ImageType.FLAT.value, ImageType.MASTER_FLAT.value, 
@@ -195,18 +291,18 @@ def generate_full_summary(df: pd.DataFrame, logger: logging.Logger, total_scanne
             ImageType.DARK_FLAT.value, ImageType.MASTER_DARKFLAT.value
         ]
         
-        # Check for any variations like 'MasterLight' or 'Master Light' if they exist in the DB but not in our enum
         unique_itypes = site_group[InternalColumns.IMAGE_TYPE].unique()
         
         for itype in order:
-            # Case-insensitive match to handle 'DARK' vs 'Dark'
+            # Case-insensitive matching to find the actual type in the current group
             matches = [u for u in unique_itypes if str(u).upper() == itype.upper()]
             if matches:
                 for actual_type in matches:
-                    table, exp = format_image_type_table(site_group, actual_type, logger)
+                    table, exp = format_image_type_table(site_group, actual_type, logger, light_filters=light_filters)
                     if table:
                         report.append(table)
                         report.append(f"\nTotal {itype} Exposure Time: {seconds_to_hms(exp, logger)}\n")
                     
+    # Append global processing statistics
     report.append(f"\n Total number of images processed: {total_scanned}\n")
     return "\n".join(report)
