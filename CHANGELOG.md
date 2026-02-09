@@ -129,4 +129,153 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modified debugging file dumps to occur after data processing rather than at the end.
 
 ## [1.3.0] - 2024-02-12
+
+### Added
+
 - Initial Release Version 1.3.0.
+
+
+
+## [1.2.10] - 2024-02-09
+
+### Changed
+
+- Ensured that only master flats and master darks that have the same filters and exposures as the light frames are used.
+
+
+
+## [1.2.8] - 2024-02-07
+
+### Added
+
+- Dump data frames to .csv file for analysis.
+
+### Fixed
+
+- Corrected error in the function observation period where `['name'][0]` was used instead of `['name'].iloc[0]`.
+
+
+
+## [1.2.5] - 2024-02-07
+
+### Added
+
+- Added check for session date calculations; any errors will be logged and code reports session date information not available.
+
+
+
+## [1.2.4] - 2024-02-06
+
+### Fixed
+
+- Corrected observation session count (retry).
+
+- Improved handling of `date-obs` as datetimes for correct date calculation.
+
+- Moved session statistics calculation to `aggregate_parameters` before converting to date.
+
+### Changed
+
+- Minor formatting changes on summary report to align positive and negative temperature values.
+
+
+
+## [1.2.3] - 2024-01-30
+
+### Fixed
+
+- Corrected logic that caused sites that had been seen to be claimed as not seen.
+
+- Corrected observation session count.
+
+### Changed
+
+- Improved logging readability.
+
+- Added measurement and reporting of session temperature statistics.
+
+- Added measurement and reporting of total number of images processed.
+
+- Improved layout of summary report.
+
+
+
+## [1.2.0] - 2024-01-28
+
+### Fixed
+
+- Corrected use of wrong column name for `sensorCooling` (was using `sensorTemperature`).
+
+- Handled `.xisf` files processed by PixInsight that have no header information.
+
+- Fixed error where the same header was added to the aggregating dataframe twice.
+
+- Improved `site.process_new_location` logic:
+
+    - Ensure `location_string` defaults to config if geocoding fails.
+
+    - Don't re-geocode if already set to default.
+
+    - Fallback to default Bortle/SQM if returned as 0,0.
+
+    - Log geocoding errors.
+
+- Captured error when `find_location_by_coords` returns `None`.
+
+
+
+## [1.1.4] - 2024-01-13
+
+### Changed
+
+- Redesign of how code parses data files.
+
+- Allow use of symbolic links to calibration data directories.
+
+- Removed use of `WBPP` keyword.
+
+### Fixed
+
+- Bug fix: check for master dark, bias, and flatdarks. If found, corresponding individual frames are ignored.
+
+- Corrected FWHM calculation: `fwhm = hfr * imscale * 2` (was `hfr * imscale`).
+
+- Corrected observation sessions count (unique dates / 2).
+
+- Corrected mean session temperature to be the mean of only light frames.
+
+- Forced use of `_c.xisf` files when processing WBPP directories to ensure correct header information.
+
+
+
+## [1.1.3] - 2024-01-11
+
+### Added
+
+- Support for WBPP directories.
+
+- Logic to drop individual calibration frames if corresponding master calibration files are found.
+
+### Fixed
+
+- Removed duplicate light frames from header (commonly found in WBPP directories).
+
+- Added grouping on object (target) in `aggregate_parameters` for accurate light frame counting.
+
+- Added check for master dark, bias, and flats.
+
+
+
+## [1.1.0] - 2024-01-09
+
+### Changed
+
+- Ensured all `IMAGETYP` headers are upper case.
+
+### Fixed
+
+- Corrected position print of `imagetype` for DARK frames.
+
+- Ensure `location_string` defaults to config if all geocoding fails.
+
+- Log all geocoding errors returned by geopy.
