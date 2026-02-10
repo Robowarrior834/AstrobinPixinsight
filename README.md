@@ -1,4 +1,4 @@
-# AstroBin Upload Utility v2.0.0 (Clean Slate)
+# AstroBin Upload Utility v2.0.0
 Scripts to process FITS/XISF headers and create Astrobin data acquisition file and summary text.
 
 Usage:
