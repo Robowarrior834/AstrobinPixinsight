@@ -22,6 +22,5 @@ By rounding GPS coordinates to a stable 110m resolution, the pipeline resolves "
 - **Precision**: 4-decimal tracking for handshake anchors.
 - **Cleanliness**: Reporting logic is strictly isolated from processing logic, ensuring your final CSVs and reports are formatted exactly as needed for AstroBin.
 
-## Installation
-Ensure you are using the provided virtual environment:
-`/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py [directory]`
+## Installation & Usage
+Please refer to the [README.md](README.md) for detailed installation and usage instructions.
