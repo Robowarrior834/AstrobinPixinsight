@@ -76,7 +76,7 @@ class Exporter:
             'number': 'number',
             'exposure': 'duration',
             'xbinning': 'binning',
-            'gain_match': 'gain',           # Uses the result of the Gain Handshake
+            'gain': 'gain',           # Uses pure linear integer gain
             'ccd-temp': 'sensorCooling',
             'focratio': 'fNumber',
             'darks': 'darks',
@@ -118,7 +118,8 @@ class Exporter:
         # 2. Append the CSV preview
         # We append a string representation of the acquisition table to the 
         # bottom of the text summary for quick visual verification by the user.
-        df_string = acq_df.to_string(index=False).replace('\n', '\n ')
+        # We use max_rows=None to ensure the entire table is visible in the text report.
+        df_string = acq_df.to_string(index=False, max_rows=None, max_cols=None).replace('\n', '\n ')
         summary += f"\n{output_basename}_acquisition.csv\n\n {df_string}\n"
         
         # 3. Save the Text Summary to disk

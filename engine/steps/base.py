@@ -75,34 +75,46 @@ class NormalizeHeadersStep:
                 df[k] = v
 
         # --- Stage 3: Column Standardization ---
-        # Normalize all column names to lowercase for consistent internal processing
+        # Normalize all column names to lowercase for consistent internal processing.
+        # We must also merge any duplicate columns created by case variations (e.g., 'GAIN' and 'gain').
         df.columns = [c.lower() for c in df.columns]
         
-        # --- Stage 4: IMAGETYP Normalization ---
+        # Identify and merge duplicate columns
+        if df.columns.duplicated().any():
+            # Group by column name and coalesce (take the first non-null value)
+            df = df.groupby(level=0, axis=1).first()
+        
+        # --- Stage 4: Initial Filtering ---
+        # Drop 'MASTERLIGHT' frames.
+        # We calculate exposures from individual subs; masters would double the total.
         itype_col = InternalColumns.IMAGE_TYPE
         if itype_col in df.columns:
-            # Force string type and uppercase for reliable pattern matching
             df[itype_col] = df[itype_col].astype(str).str.upper()
-            
-            # Hard filter: Drop 'MASTERLIGHT' frames.
-            # We calculate exposures from individual subs; masters would double the total.
             mask_drop = df[itype_col].str.contains('MASTERLIGHT', case=False, na=False) | \
                         df[itype_col].str.contains('MASTER LIGHT', case=False, na=False) | \
                         (df[itype_col] == 'NAN')
-            
             df = df[~mask_drop].copy()
 
-            # Normalization Map: Standardizes various capture software strings (substring matching)
+        # --- Stage 5: Master Preference Filtering ---
+        # Execute preference before normalization to allow substring matching (FLAT vs MASTERFLAT)
+        df = self._execute_master_preference(df)
+
+        # --- Stage 6: IMAGETYP Normalization (Post-Preference) ---
+        if itype_col in df.columns:
             type_map = {
                 'LIGHT': ImageType.LIGHT.value,
                 'FLAT': ImageType.FLAT.value,
                 'DARK': ImageType.DARK.value,
                 'BIAS': ImageType.BIAS.value,
                 'MASTERFLAT': ImageType.MASTER_FLAT.value,
+                'MASTER FLAT': ImageType.MASTER_FLAT.value,
                 'MASTERDARK': ImageType.MASTER_DARK.value,
+                'MASTER DARK': ImageType.MASTER_DARK.value,
                 'MASTERBIAS': ImageType.MASTER_BIAS.value,
+                'MASTER BIAS': ImageType.MASTER_BIAS.value,
                 'MASTERDARKFLAT': ImageType.MASTER_DARKFLAT.value,
-                'DARKFLAT': ImageType.DARK_FLAT.value
+                'DARKFLAT': ImageType.DARK_FL_VALUE if hasattr(ImageType, 'DARK_FL_VALUE') else ImageType.DARK_FLAT.value,
+                'DARK FLAT': ImageType.DARK_FLAT.value
             }
             
             # Apply mappings (longer keywords first to prevent partial matches like 'DARK' matching 'DARKFLAT')
@@ -110,7 +122,7 @@ class NormalizeHeadersStep:
                 mask = df[itype_col].str.contains(keyword, case=False, na=False)
                 df.loc[mask, itype_col] = normalized
 
-        # --- Stage 5: Core Column Hardening ---
+        # --- Stage 7: Core Column Hardening ---
         # Ensure critical columns exist and are strictly typed.
         core_columns = {
             InternalColumns.GAIN: 0,
@@ -142,16 +154,100 @@ class NormalizeHeadersStep:
                 df[col] = default
             else:
                 # Type-cast existing columns to numeric and fill NaNs
-                if col in [InternalColumns.GAIN, InternalColumns.EGAIN, InternalColumns.DURATION, 
+                if col in [InternalColumns.EGAIN, 
                           InternalColumns.SENSOR_COOLING, InternalColumns.FOCAL_LENGTH, 
                           InternalColumns.F_NUMBER, InternalColumns.PIXEL_SIZE, 
                           InternalColumns.SITE_LAT, InternalColumns.SITE_LONG,
                           InternalColumns.BINNING, InternalColumns.BORTLE, 
-                          InternalColumns.MEAN_SQM, InternalColumns.NUMBER]:
-                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(default)
+                          InternalColumns.MEAN_SQM]:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(default).astype(float)
+                elif col == InternalColumns.DURATION:
+                    # Round duration to 2 decimal places for consistent grouping/matching
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(default).round(2).astype(float)
+                elif col == InternalColumns.NUMBER:
+                    # Special handling for NUMBER: preserve existing counts from masters
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(1).astype(int)
+                elif col == InternalColumns.GAIN:
+                    # Gain is strictly a linear integer (e.g. 100, 1, 0)
+                    # We prioritize existing numeric GAIN from headers.
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(default).round().astype(int)
                 elif col == InternalColumns.SITE_NAME:
                     # Standardize Site Names as strings
                     df[col] = df[col].astype(str).replace('nan', default)
 
         state.processed_df = df
         return state
+
+    def _execute_master_preference(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Final authority on calibration hierarchy. 
+        If a group of frames (same hardware axes) contains a MASTER, 
+        discard everything else in that group.
+        """
+        itype_col = InternalColumns.IMAGE_TYPE
+        
+        # 1. Identify Calibration vs Light using original labels
+        def is_cal(val):
+            v = str(val).upper()
+            return any(t in v for t in ['FLAT', 'DARK', 'BIAS']) and 'LIGHT' not in v
+
+        cals_mask = df[itype_col].apply(is_cal)
+        lights = df[~cals_mask].copy()
+        cals = df[cals_mask].copy()
+        
+        if cals.empty: return df
+
+        # 2. Grouping key must associate 'FLAT' with 'MASTER FLAT'
+        def get_group_key(row):
+            orig_itype = str(row[itype_col]).upper()
+            # Normalize base type: 'MASTER FLAT' -> 'FLAT', 'DARK' -> 'DARK'
+            # Stripping 'MASTER' and removing spaces ensures 'MASTER FLAT' groups with 'FLAT'
+            base_type = orig_itype.replace('MASTER', '').replace(' ', '').strip()
+            
+            # Use raw numeric values for precise hardware grouping
+            try:
+                gain = int(round(float(row[InternalColumns.GAIN])))
+            except:
+                gain = 0
+                
+            try:
+                # Reduce precision to 2 decimals to bridge master/raw EGAIN differences
+                egain = f"{float(row[InternalColumns.EGAIN]):.2f}"
+            except:
+                egain = "1.00"
+                
+            binning = str(row[InternalColumns.BINNING]).strip()
+            
+            # Filter normalization for grouping
+            import re
+            filter_val = row.get('filter', row.get('FILTER', 'No Filter'))
+            filter_name = str(filter_val).lower().strip()
+            # Remove common prefixes like 'filter_' or 'filter-'
+            filter_name = re.sub(r'^filter[_-]', '', filter_name).strip()
+            
+            if base_type in ['DARK', 'BIAS']:
+                try:
+                    duration = f"{float(row[InternalColumns.DURATION]):.2f}"
+                except:
+                    duration = "0.00"
+                return (base_type, gain, egain, binning, duration)
+            else:
+                return (base_type, gain, egain, binning, filter_name)
+
+        cals['_group_key'] = cals.apply(get_group_key, axis=1)
+        
+        # 3. Master Preemption: Within each group, if a Master exists, keep ONLY one master.
+        final_cals = []
+        for _, group in cals.groupby('_group_key'):
+            is_master_mask = group[itype_col].astype(str).str.upper().str.contains('MASTER', na=False)
+            if is_master_mask.any():
+                # KEEP ONLY the first master frame found in this hardware group, drop all raws
+                final_cals.append(group[is_master_mask].iloc[[0]])
+            else:
+                # Keep all raw frames if no master exists
+                final_cals.append(group)
+        
+        if final_cals:
+            cals = pd.concat(final_cals, ignore_index=True).drop(columns=['_group_key'])
+        
+        return pd.concat([lights, cals], ignore_index=True)

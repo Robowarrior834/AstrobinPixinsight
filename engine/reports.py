@@ -148,7 +148,7 @@ def get_observation_period(group: pd.DataFrame, logger: logging.Logger) -> str:
     
     return "\n".join(s) + "\n"
 
-def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging.Logger, light_filters: set = None) -> Tuple[str, float]:
+def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging.Logger, light_filters: set = None, light_gains: set = None) -> Tuple[str, float]:
     """
     Constructs an ASCII table summarizing frame counts and exposures for a specific type.
     
@@ -160,6 +160,7 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
         imagetype (str): The specific ImageType to format (e.g., 'LIGHT', 'FLAT').
         logger (logging.Logger): Application logger.
         light_filters (set, optional): Set of filter names used in Light frames.
+        light_gains (set, optional): Set of linear Gain values used in Light frames.
 
     Returns:
         Tuple[str, float]: (The formatted ASCII table, Total exposure time in seconds).
@@ -170,10 +171,14 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
     # Filter for the specific image type requested
     image_group = group[group[InternalColumns.IMAGE_TYPE] == imagetype].copy()
     
-    # Calibration Filtering: Only show Flats/Calibration for filters that were actually used for Lights
+    # Calibration Filtering: Only show Calibration for (Filter and/or Gain) that were actually used for Lights
     # This prevents clutter from calibration files that don't belong to the current session.
     if light_filters is not None and "FLAT" in imagetype.upper():
         image_group = image_group[image_group[InternalColumns.FILTER_NAME].astype(str).str.lower().isin(light_filters)]
+    
+    if light_gains is not None and imagetype != ImageType.LIGHT.value:
+        # Strictly exclude calibration frames whose linear Gain doesn't match any Light frame Gain
+        image_group = image_group[image_group[InternalColumns.GAIN_MATCH].isin(light_gains)]
 
     if image_group.empty: return "", 0.0
 
@@ -193,6 +198,7 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
             # Aggregate stats across multiple sessions/nights for this specific target
             summary_agg = t_group.groupby(table_group_keys, observed=True).agg({
                 InternalColumns.NUMBER: 'sum',
+                InternalColumns.GAIN: 'first',
                 InternalColumns.EGAIN: 'mean',
                 InternalColumns.MEAN_FWHM: 'mean',
                 InternalColumns.SENSOR_COOLING: 'mean',
@@ -203,8 +209,9 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
                 row_total_exposure = row[InternalColumns.NUMBER] * row[InternalColumns.DURATION]
                 t_exposure_target += row_total_exposure
                 
-                # Format gain into dB (integer stored internally as gain*10)
-                gain_str = f"{float(row[InternalColumns.GAIN_MATCH]) * 0.1:.2f} dB"
+                # Format gain for display (using linear integer GAIN)
+                gain_val = row[InternalColumns.GAIN]
+                gain_str = str(int(round(float(gain_val)))) if pd.notna(gain_val) else "N/A"
                 egain_str = f"{float(row[InternalColumns.EGAIN]):.2f} e/ADU"
                 
                 lines.append(header.format(
@@ -216,13 +223,26 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
             total_exposure += t_exposure_target
     else:
         # Calibration Frames: Consolidate by filter/gain/exposure (no target grouping)
-        label = imagetype if str(imagetype).upper().endswith('S') else f"{imagetype}S"
-        lines.append(f"\n {label}:\n")
+        # Normalize labels to MASTER[TYPE]S as per v1.4.7 standards
+        label_map = {
+            'DARK': 'MASTERDARKS',
+            'FLAT': 'MASTERFLATS',
+            'BIAS': 'MASTERBIAS',
+            'DARKFLAT': 'MASTERDARKFLATS',
+            'MASTERDARK': 'MASTERDARKS',
+            'MASTERFLAT': 'MASTERFLATS',
+            'MASTERBIAS': 'MASTERBIAS',
+            'MASTERDARKFLAT': 'MASTERDARKFLATS'
+        }
+        display_label = label_map.get(imagetype.upper(), f"MASTER{imagetype.upper()}S")
+        
+        lines.append(f"\n {display_label}:\n")
         header = " {:<10} {:<8} {:<10} {:<15} {:<12} {:<15}"
         lines.append(header.format("Filter", "Frames", "Gain", "Egain", "Exposure", "Total Exposure"))
         
         summary_agg = image_group.groupby(table_group_keys, observed=True).agg({
             InternalColumns.NUMBER: 'sum',
+            InternalColumns.GAIN: 'first',
             InternalColumns.EGAIN: 'mean'
         }).reset_index()
 
@@ -230,11 +250,17 @@ def format_image_type_table(group: pd.DataFrame, imagetype: str, logger: logging
             row_total_exposure = row[InternalColumns.NUMBER] * row[InternalColumns.DURATION]
             total_exposure += row_total_exposure
             
-            gain_str = f"{float(row[InternalColumns.GAIN_MATCH]) * 0.1:.2f} dB"
+            # Format gain for display (using linear integer GAIN)
+            gain_val = row[InternalColumns.GAIN]
+            gain_str = str(int(round(float(gain_val)))) if pd.notna(gain_val) else "N/A"
             egain_str = f"{float(row[InternalColumns.EGAIN]):.2f} e/ADU"
             
+            # For Dark/Bias, the filter column should be blank if it is 'No Filter'
+            filter_val = str(row[InternalColumns.FILTER_NAME])
+            if filter_val == 'No Filter': filter_val = ""
+
             lines.append(header.format(
-                str(row[InternalColumns.FILTER_NAME]), int(row[InternalColumns.NUMBER]), gain_str, egain_str,
+                filter_val, int(row[InternalColumns.NUMBER]), gain_str, egain_str,
                 f"{row[InternalColumns.DURATION]:.2f} secs", seconds_to_hms(row_total_exposure, logger, aligned=True)
             ))
             
@@ -267,8 +293,9 @@ def generate_full_summary(df: pd.DataFrame, logger: logging.Logger, total_scanne
         lights = site_group[site_group[InternalColumns.IMAGE_TYPE] == ImageType.LIGHT.value]
         if lights.empty: continue # Skip sites that only have calibration frames
         
-        # Determine unique filters for the light frames to filter irrelevant calibration data
+        # Determine unique filters and gains for the light frames to filter irrelevant calibration data
         light_filters = set(lights[InternalColumns.FILTER_NAME].astype(str).str.lower().unique())
+        light_gains = set(lights[InternalColumns.GAIN_MATCH].unique())
         
         # 1. Target and Site Metadata
         report.append(get_target_details(lights, logger))
@@ -283,25 +310,35 @@ def generate_full_summary(df: pd.DataFrame, logger: logging.Logger, total_scanne
         report.append(get_observation_period(lights, logger))
         
         # 3. Formatted Data Tables (Ordered by importance)
+        # We group raw and master types together for the report layout
         order = [
-            ImageType.LIGHT.value, 
-            ImageType.FLAT.value, ImageType.MASTER_FLAT.value, 
-            ImageType.BIAS.value, ImageType.MASTER_BIAS.value,
-            ImageType.DARK.value, ImageType.MASTER_DARK.value,
-            ImageType.DARK_FLAT.value, ImageType.MASTER_DARKFLAT.value
+            (ImageType.LIGHT.value,), 
+            (ImageType.FLAT.value, ImageType.MASTER_FLAT.value), 
+            (ImageType.BIAS.value, ImageType.MASTER_BIAS.value),
+            (ImageType.DARK.value, ImageType.MASTER_DARK.value),
+            (ImageType.DARK_FLAT.value, ImageType.MASTER_DARKFLAT.value)
         ]
         
         unique_itypes = site_group[InternalColumns.IMAGE_TYPE].unique()
-        
-        for itype in order:
-            # Case-insensitive matching to find the actual type in the current group
-            matches = [u for u in unique_itypes if str(u).upper() == itype.upper()]
+        processed_types = set()
+
+        for type_tuple in order:
+            # Find all types in the current group that belong to this category (e.g., DARK + MASTERDARK)
+            matches = [u for u in unique_itypes if u in type_tuple]
             if matches:
-                for actual_type in matches:
-                    table, exp = format_image_type_table(site_group, actual_type, logger, light_filters=light_filters)
-                    if table:
-                        report.append(table)
-                        report.append(f"\nTotal {itype} Exposure Time: {seconds_to_hms(exp, logger)}\n")
+                # Filter the site_group to include only these specific types for the table
+                category_group = site_group[site_group[InternalColumns.IMAGE_TYPE].isin(matches)]
+                
+                # We use the primary type in the tuple for the formatting logic (determines the MASTER label)
+                primary_type = type_tuple[0]
+                
+                table, exp = format_image_type_table(category_group, primary_type, logger, 
+                                                   light_filters=light_filters, light_gains=light_gains)
+                if table:
+                    report.append(table)
+                    report.append(f"\nTotal {primary_type} Exposure Time: {seconds_to_hms(exp, logger)}\n")
+                
+                processed_types.update(matches)
                     
     # Append global processing statistics
     report.append(f"\n Total number of images processed: {total_scanned}\n")

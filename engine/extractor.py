@@ -152,6 +152,41 @@ class HeaderExtractor:
         hdr = {kw.get('name'): kw.get('value') for kw in root.findall('.//xisf:FITSKeyword', ns)}
         hdr[FITSKeywords.FILENAME] = os.path.basename(filepath)
         
+        # Deep Property Extraction: Look for Gain in PixInsight-specific properties 
+        # if it was missing from the standard FITSKeywords.
+        if FITSKeywords.GAIN not in hdr:
+            gain_prop = root.find(".//xisf:Property[@id='instrument:gain']", ns)
+            if gain_prop is not None:
+                raw_gain = gain_prop.text
+                try:
+                    # Smart Extraction: If gain is a decimal < 1, it's likely EGAIN signature
+                    val = float(raw_gain)
+                    if 0 < val < 1.0:
+                        hdr[FITSKeywords.EGAIN] = raw_gain
+                    else:
+                        hdr[FITSKeywords.GAIN] = raw_gain
+                except ValueError:
+                    hdr[FITSKeywords.GAIN] = raw_gain
+        
+        # Filename Fallback: If Gain is still missing (or was a decimal assigned to EGAIN), 
+        # try to extract the true linear integer from the filename.
+        if FITSKeywords.GAIN not in hdr or str(hdr.get(FITSKeywords.GAIN)).strip() in ['', 'nan', 'None']:
+            import re
+            fname = os.path.basename(filepath)
+            # Match patterns like GAIN-100, gain_100, Gain100
+            match = re.search(r'GAIN[_-]?(\d+)', fname, re.IGNORECASE)
+            if match:
+                hdr[FITSKeywords.GAIN] = match.group(1)
+
+        # Filename Fallback for FILTER
+        if FITSKeywords.FILTER not in hdr or str(hdr.get(FITSKeywords.FILTER)).strip() in ['', 'nan', 'None']:
+            import re
+            fname = os.path.basename(filepath)
+            # Match patterns like FILTER-Ha, Filter_OIII, etc.
+            match = re.search(r'FILTER[_-]([^_.]+)', fname, re.IGNORECASE)
+            if match:
+                hdr[FITSKeywords.FILTER] = match.group(1)
+        
         # Master Sub-exposure Detection:
         # PixInsight Master frames store the integration count in the ProcessingHistory property.
         hdr[FITSKeywords.NUMBER] = 1
@@ -163,6 +198,17 @@ class HeaderExtractor:
                 if table is not None:
                     hdr[FITSKeywords.NUMBER] = int(table.get('rows', 1))
             except Exception: pass
+        
+        # Fallback: If NUMBER is still 1, search FITS comments/history for ImageIntegration count
+        if hdr[FITSKeywords.NUMBER] == 1:
+            for kw in root.findall('.//xisf:FITSKeyword', ns):
+                name = kw.get('name')
+                comment = kw.get('comment', '')
+                if name in ['COMMENT', 'HISTORY'] and 'ImageIntegration.numberOfImages:' in comment:
+                    try:
+                        hdr[FITSKeywords.NUMBER] = int(comment.split(':')[-1].strip())
+                        break
+                    except Exception: pass
             
         return hdr
 

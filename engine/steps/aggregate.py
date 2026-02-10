@@ -106,7 +106,7 @@ class AggregationStep:
             'session_date', 
             InternalColumns.IMAGE_TYPE, 
             InternalColumns.FILTER_NAME, 
-            InternalColumns.GAIN_MATCH, # Grouping by gain result of the handshake
+            InternalColumns.GAIN, # Grouping by linear integer gain for CSV/Report consistency
             InternalColumns.BINNING, 
             InternalColumns.DURATION, 
             InternalColumns.TARGET
@@ -146,6 +146,7 @@ class AggregationStep:
             InternalColumns.BORTLE: (InternalColumns.BORTLE, 'mean'),
             InternalColumns.MEAN_SQM: (InternalColumns.MEAN_SQM, 'mean'),
             InternalColumns.PIXEL_SIZE: (InternalColumns.PIXEL_SIZE, 'first'),
+            InternalColumns.GAIN_MATCH: (InternalColumns.GAIN_MATCH, 'first'),
             InternalColumns.EGAIN: (InternalColumns.EGAIN, 'mean'),
             InternalColumns.CAMERA: (InternalColumns.CAMERA, 'first'),
             InternalColumns.TELESCOPE: (InternalColumns.TELESCOPE, 'first'),

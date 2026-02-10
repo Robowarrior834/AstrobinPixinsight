@@ -51,7 +51,9 @@ class GeocodeStep:
         # Iterate through frames to assign site metadata. 
         # Using .iterrows() here to support potential multi-site sessions.
         for idx, row in df.iterrows():
-            lat, lon = row[InternalColumns.SITE_LAT], row[InternalColumns.SITE_LONG]
+            # Round coordinates to 3 decimals (~110m) to consolidate slight GPS drift
+            lat = round(float(row[InternalColumns.SITE_LAT]), 3)
+            lon = round(float(row[InternalColumns.SITE_LONG]), 3)
             
             # Fuzzy Coordinate Lookup (using precision defined in config)
             site_info = self._find_site_in_db(sites_db, lat, lon, state.config.precision)

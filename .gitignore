@@ -168,3 +168,5 @@ cython_debug/
 config.ini
 AstroBinUpload.zip
 golden_tests/
+GEMINI.md
+MEMORY.md
