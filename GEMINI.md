@@ -37,7 +37,9 @@ v2.0.0 is a modular Pipeline Architecture. The logic is decoupled into a series 
     - Maintain MEMORY.md for daily session state.
     - Update CHANGELOG.md ONLY when a significant feature is completed or a new version is tagged.
     - Refer to CHANGELOG.md if you need to understand the history of architectural shifts or past version features.
-- Git Hygiene: Do NOT track GEMINI.md or MEMORY.md in git.
+- Git Hygiene: 
+    - Do NOT track GEMINI.md or MEMORY.md in git.
+    - NEVER synchronize `.zip` files or the `tests/` folder to GitHub. Ensure they are excluded during `git add`.
 
 ## 🧠 Memory Protocol
 
