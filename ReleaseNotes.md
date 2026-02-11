@@ -1,4 +1,4 @@
-# Release Notes - AstroBin Upload Utility v2.0.2 (Master Release)
+# Release Notes - AstroBin Upload Utility v2.0.2
 
 ## Overview
 v2.0.2 is the definitive "Master Release" of the 2.0 series. It represents a complete architectural evolution of the AstroBin Upload Utility, transforming it from a procedural script into a high-performance, modular, and hardened ETL (Extract, Transform, Load) pipeline. This release combines the performance of v2.0.0, the diagnostic visibility of v2.0.1, and the system integrity safeguards of v2.0.2.
