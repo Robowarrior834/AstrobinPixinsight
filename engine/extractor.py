@@ -108,14 +108,14 @@ class HeaderExtractor:
             Optional[Dict[str, Any]]: Dictionary of header keywords, or None on failure.
         """
         logger = logging.getLogger("AstroBinV2")
-        logger.info(f"Processing headers for file: {os.path.basename(filepath)}")
+        logger.debug(f"Processing headers for file: {os.path.basename(filepath)}")
         try:
             if filepath.lower().endswith(('.fits', '.fit', '.fts')):
                 hdr = self._read_fits(filepath)
-                logger.info(f"Successfully read FITS header from {filepath}")
+                logger.debug(f"Successfully read FITS header from {filepath}")
             elif filepath.lower().endswith('.xisf'):
                 hdr = self._read_xisf(filepath)
-                logger.info(f"Successfully read XISF header from {filepath}")
+                logger.debug(f"Successfully read XISF header from {filepath}")
             else:
                 logger.warning(f"Unsupported file format: {filepath}")
                 return None
@@ -123,8 +123,8 @@ class HeaderExtractor:
             # Post-parsing cleanup: Strip quotes often found in raw FITS string values
             cleaned_hdr = {k: v.strip("'").strip('"') if isinstance(v, str) else v for k, v in hdr.items()}
             
-            # Horizontal Header Printing (Essential requirement)
-            logger.info(f"Recovered Header: {cleaned_hdr}")
+            # Horizontal Header Printing (Essential requirement for DEBUG mode)
+            logger.debug(f"Recovered Header: {cleaned_hdr}")
             
             return cleaned_hdr
         except Exception as e:

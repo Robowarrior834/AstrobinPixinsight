@@ -41,7 +41,7 @@ class AggregationStep:
         if df.empty: return state
 
         # --- Stage 1: Temporal Normalization ---
-        logger.info("Performing temporal normalization")
+        logger.debug("Performing temporal normalization")
 
         # Ensure observation dates are proper datetime objects for vectorized math
         df[InternalColumns.DATE_OBS] = pd.to_datetime(df[InternalColumns.DATE_OBS], errors='coerce')
@@ -71,7 +71,7 @@ class AggregationStep:
         # If use_obs_date is False, we shift frames taken after midnight to the 
         # previous day's date so they appear as part of a single continuous night.
         if not state.config.use_obs_date:
-            logger.info("Applying overnight date shifting")
+            logger.debug("Applying overnight date shifting")
             time_diff = df[InternalColumns.DATE_OBS].diff()
             session_ids = (time_diff > pd.Timedelta(hours=5)).cumsum()
             
@@ -105,7 +105,7 @@ class AggregationStep:
             print("\n")
 
         # --- Stage 3: Aggregation ---
-        logger.info("Grouping and summarizing metadata")
+        logger.debug("Grouping and summarizing metadata")
 
         # Define the primary keys for grouping data
         agg_cols = [

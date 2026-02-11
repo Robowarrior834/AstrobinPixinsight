@@ -55,7 +55,7 @@ class CalibrationMatcherStep:
         
         # --- Stage 2: Light-Frame Authority (Strict Pruning) ---
         # Extract valid anchors from Light frames. 
-        logger.info("Identifying calibration frame anchors from light frames")
+        logger.debug("Identifying calibration frame anchors from light frames")
         is_light = df[InternalColumns.IMAGE_TYPE] == ImageType.LIGHT.value
         lights_auth = df[is_light].copy()
         
@@ -99,12 +99,12 @@ class CalibrationMatcherStep:
             df = df[~mask_orphaned].copy()
 
         # --- Stage 3: Segmentation ---
-        logger.info("Segmenting lights and calibration frames")
+        logger.debug("Segmenting lights and calibration frames")
         lights_mask = df[InternalColumns.IMAGE_TYPE] == ImageType.LIGHT.value
         lights = df[lights_mask].copy()
         cals = df[~lights_mask].copy()
         
-        logger.info(f"Split DataFrame: {len(lights)} LIGHTS and {len(cals)} calibration frames")
+        logger.debug(f"Split DataFrame: {len(lights)} LIGHTS and {len(cals)} calibration frames")
 
         if lights.empty: 
             state.processed_df = df
@@ -115,7 +115,7 @@ class CalibrationMatcherStep:
             lights[col] = 0
 
         # --- Stage 4: Matching Loop with Master Preference ---
-        logger.info("Matching calibration frames to light frames")
+        logger.debug("Matching calibration frames to light frames")
         for idx, row in lights.iterrows():
             
             # 4a. Identify Candidates

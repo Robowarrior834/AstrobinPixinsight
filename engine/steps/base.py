@@ -83,12 +83,12 @@ class NormalizeHeadersStep:
         # --- Stage 3: Column Standardization ---
         # Normalize all column names to lowercase for consistent internal processing.
         # We must also merge any duplicate columns created by case variations (e.g., 'GAIN' and 'gain').
-        logger.info("Normalizing all column names to lowercase")
+        logger.debug("Normalizing all column names to lowercase")
         df.columns = [c.lower() for c in df.columns]
         
         # Identify and merge duplicate columns
         if df.columns.duplicated().any():
-            logger.info("Merging duplicate columns")
+            logger.debug("Merging duplicate columns")
             # Group by column name and coalesce (take the first non-null value)
             df = df.groupby(level=0, axis=1).first()
         
@@ -97,7 +97,7 @@ class NormalizeHeadersStep:
         # We calculate exposures from individual subs; masters would double the total.
         itype_col = InternalColumns.IMAGE_TYPE
         if itype_col in df.columns:
-            logger.info("Performing initial image type filtering")
+            logger.debug("Performing initial image type filtering")
             df[itype_col] = df[itype_col].astype(str).str.upper()
             mask_drop = df[itype_col].str.contains('MASTERLIGHT', case=False, na=False) | \
                         df[itype_col].str.contains('MASTER LIGHT', case=False, na=False) | \
@@ -106,12 +106,12 @@ class NormalizeHeadersStep:
 
         # --- Stage 5: Master Preference Filtering ---
         # Execute preference before normalization to allow substring matching (FLAT vs MASTERFLAT)
-        logger.info("Executing master preference filtering")
+        logger.debug("Executing master preference filtering")
         df = self._execute_master_preference(df)
 
         # --- Stage 6: IMAGETYP Normalization (Post-Preference) ---
         if itype_col in df.columns:
-            logger.info("Standardizing image type values")
+            logger.debug("Standardizing image type values")
             type_map = {
                 'LIGHT': ImageType.LIGHT.value,
                 'FLAT': ImageType.FLAT.value,
@@ -124,7 +124,7 @@ class NormalizeHeadersStep:
                 'MASTERBIAS': ImageType.MASTER_BIAS.value,
                 'MASTER BIAS': ImageType.MASTER_BIAS.value,
                 'MASTERDARKFLAT': ImageType.MASTER_DARKFLAT.value,
-                'DARKFLAT': ImageType.DARK_FL_VALUE if hasattr(ImageType, 'DARK_FL_VALUE') else ImageType.DARK_FLAT.value,
+                'DARKFLAT': ImageType.DARK_FLAT.value,
                 'DARK FLAT': ImageType.DARK_FLAT.value
             }
             
@@ -132,12 +132,12 @@ class NormalizeHeadersStep:
             for keyword, normalized in sorted(type_map.items(), key=lambda x: len(x[0]), reverse=True):
                 mask = df[itype_col].str.contains(keyword, case=False, na=False)
                 if mask.any():
-                    logger.info(f"Converted IMAGETYP keyword '{keyword}' to {normalized}")
+                    logger.debug(f"Converted IMAGETYP keyword '{keyword}' to {normalized}")
                 df.loc[mask, itype_col] = normalized
 
         # --- Stage 7: Core Column Hardening ---
         # Ensure critical columns exist and are strictly typed.
-        logger.info("Reducing headers and hardening core column data types")
+        logger.debug("Reducing headers and hardening core column data types")
         core_columns = {
             InternalColumns.GAIN: 0,
             InternalColumns.EGAIN: 1.0,
@@ -189,7 +189,7 @@ class NormalizeHeadersStep:
                     # Standardize Site Names as strings
                     df[col] = df[col].astype(str).replace('nan', default)
 
-        logger.info("Completed data type conversion and header normalization")
+        logger.debug("Completed data type conversion and header normalization")
         state.processed_df = df
         return state
 
