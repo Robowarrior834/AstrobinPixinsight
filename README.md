@@ -9,8 +9,9 @@ Usage:
 - - [Features](#features)   
 - [Prerequisites](#prerequisites)    
     - [Installation of the AstroBinUpload.py script](#installation-of-the-astrobinuploadpy-script)
-    - [config.ini generation](#configini-generation)
-    - [config.ini contents and editing](#configini-contents-and-editing)
+    - [Initialization and Config.ini generation](#initialization-and-configini-generation)
+    - [Using Alternative Configuration Files](#using-alternative-configuration-files)
+    - [Config.ini contents and editing](#configini-contents-and-editing)
         - [[defaults]](#defaults)
         - [[filters]](#filters)
         - [[secrets]](#secrets)
@@ -18,15 +19,15 @@ Usage:
         - [[override]](#override) 
         - [Editing the initial config.ini](#editing-the-initial-configini)
 - [Running the Script](#running-the-script)
-    - [Initialization](#initialization-no-arguments-are-passed)
-    - [Single directory or symbolic link passed to script](#a-single-directory-path-or-symbolic-link-argument-is-passed-to-the-script)
-    - [Multiple directory paths or symbolic links are passed to the script](#multiple-directory-paths-or-symbolic-links-are-passed-to-the-script)
-    - [Debug output](#debug-output)
+    - [Initialization (no arguments)](#initialization-no-arguments-are-passed)
+    - [Single directory or symbolic link](#a-single-directory-path-or-symbolic-link-argument-is-passed-to-the-script)
+    - [Multiple directory paths or symbolic links](#multiple-directory-paths-or-symbolic-links-are-passed-to-the-script)
+    - [Advanced Debugging and Error Handling](#advanced-debugging-and-error-handling)
 - [Example calls and outputs](#example-calls-and-outputs)
-    - [Single site, non-mosaic, no Masters. Data resides in structured single directory, symbolic links used for calibration data ](#example-1-single-site-non-mosaic-no-masters-data-resides-in-structured-single-directory-symbolic-links-used-for-calibration-data)
-    - [Single site, 2 panel mosaic, symbolic links to calibration data, use of MASTERFLATS](#example-2-single-site-2-panel-mosaic-symbolic-links-to-calibration-data-use-of-masterflats)
-    - [Dual site, structured directory, 2 panel mosaic, use of MASTERCALS](#example-3-dual-site-structured-directory-2-panel-mosaic-use-of-mastercals)
-    - [WBPP two-panel mosaic](#example-4-wbpp-two-panel-mosaic)
+    - [Example 1: Single site, non-mosaic](#example-1-single-site-non-mosaic-no-masters-data-resides-in-structured-single-directory-symbolic-links-used-for-calibration-data)
+    - [Example 2: Single site, 2 panel mosaic](#example-2-single-site-2-panel-mosaic-symbolic-links-to-calibration-data-use-of-masterflats)
+    - [Example 3: Dual site, structured directory](#example-3-dual-site-structured-directory-2-panel-mosaic-use-of-mastercals)
+    - [Example 4: WBPP two-panel mosaic](#example-4-wbpp-two-panel-mosaic)
 - [Troubleshooting & Installation Tips](#troubleshooting--installation-tips)
 - [References](#references)   
     - [AstroBin's Acquisition CSV File Format](#astrobins-acquisition-csv-file-format)
@@ -126,6 +127,14 @@ The script will halt, allowing you to edit the config.ini file using a text edit
 
 If you run the script when the config.ini file exists and pass no arguments, an error will be flagged, and the script will exit.
 
+### **Using Alternative Configuration Files**
+
+Version 2.0.1 allows you to specify a custom configuration file using the `--config` (or `-c`) flag. 
+
+    python3 AstroBinUpload.py "/path/to/my/data" --config my_remote_setup.ini
+
+This is ideal for users who manage different setups (e.g., Mono vs Color, Remote vs Local) and wish to switch profiles without renaming files to `config.ini`. If the specified file does not exist, the script will report an error and exit.
+
 ### **Config.ini contents and editing**
 The config.ini file contains the following sections:
 ### **[defaults]**
@@ -164,7 +173,6 @@ FOCTEMP = AOCAMBT
 In this example, the script will first look for `AOCSKYQ`, and then `AOCSKYQU` if the first is not found, to populate the internal `SQM` variable. The script prioritizes these manual overrides over standard defaults. Once a mapping is successful, the source hardware column is pruned to ensure a clean data hand-off to the aggregator.
 
 It is advisable to back up you config.ini file regularly. 
-
 
 <div style="page-break-after: always;"></div>
 
@@ -287,14 +295,14 @@ The [override] section provides a translation layer that allows you to map non-s
 
 The script is called from the command line. There are three calling methods:
 
-### **Initialization, no arguments are passed**:  
+### **Initialization (no arguments)**:  
 
     Linux/MACOS example: python3 AstroBinUpload.py 
     Windows example:     python  AstroBinUpload.py 
 
 When called with no argument the script will create a new default config.ini file in the local directory and then exit. The user can then edit the config.ini file, using a text editor, before running the script again. If an existing config.ini file is lost and the script run, a new default config.ini file will be created, and the code will exit. Once you have personalized your config.ini file make a backup.
 
-### **A single directory path or symbolic link argument is passed to the script**
+### **A single directory path or symbolic link**
 
  Note: only Linux calling examples are used going forward.
 
@@ -302,19 +310,13 @@ When called with no argument the script will create a new default config.ini fil
 
 The script expects to find all data contained in the directory passed to it. Symbolic links can be used as the argument passed to script and can also be present in the directory. The directory leaf or child directory name must be the target name if the output files are to be named correctly. From the processing perspective the only condition required to ensure data is associated with a given target is that all data and links must reside in the one directory.
 
-### **Multiple directory paths or symbolic links are passed to the script** 
+### **Multiple directory paths or symbolic links** 
 
     python3 AstroBinUpload.py "dir 1" "dir 2" .... 
 
 All directory arguments are assumed to belong to one target. Again the first directory leaf, or child directory name should contain the target name for the output files to be named correctly.
 
-### **Custom Configuration File**
-
-    python3 AstroBinUpload.py "dir 1" --config my_remote_setup.ini
-
-Version 2.0.1 allows you to specify a custom configuration file using the `--config` (or `-c`) flag. This is ideal for users who manage different setups (e.g., Mono vs Color, Remote vs Local) and wish to switch profiles without renaming files to `config.ini`.
-
-    ### **Advanced Debugging and Error Handling**
+### **Advanced Debugging and Error Handling**
 
     python3 AstroBinUpload.py "dir 1" "dir 2" ... --debug
 
@@ -349,13 +351,13 @@ Example usage:
 
 # **Example calls and outputs**
 
-## **Example 1: Single site, non-mosaic, no Masters, data resides in structured single directory, symbolic links used for calibration data** 
+## **Example 1: Single site, non-mosaic** 
 
 ![Alt text](images/image-1.png)
 
 ### Example 1: Directory structure
 
-    python3 AstroBinUpload.py "/mnt/HDD_8TB/Preselected/Sadr Region"
+    python3 AstroBinUpload.py "/mnt/preselected/Sadr Region"
 
 
 ### Example 1: Script calling syntax
@@ -379,13 +381,13 @@ The output files being named:
 ### Example 1: AstroBin.csv output
 
 
-## Example 2: Single site, 2 panel mosaic, symbolic links to calibration data, use of MASTERFLATS
+## Example 2: Single site, 2 panel mosaic
 
 ![Alt text](images/image-4.png)
 
 ### Example 2: Directory structure
 
-    python3 AstroBinUpload.py '/mnt/HDD_8TB/Preselected/NGC 1499 Mosaic'
+    python3 AstroBinUpload.py '/mnt/preselected/NGC 1499 Mosaic'
     
     or using a symbolic link:
     
@@ -405,7 +407,7 @@ The output files being named:
 
 ### Example 2: AstroBin.csv output
 
-## Example 3: Dual site, structured directory, 2 panel mosaic, use of MASTERCALS
+## Example 3: Dual site, structured directory
 
 Note: although data is reported on a per-site basis, data is aggregated from all sites to create the AstroBin.csv output. Symbolic links can also be used. A non-structured directory can also be used as long as all files reside under the main target directory. Mosaics can be generated per site, however, summary files can be quite large.
 
@@ -417,7 +419,7 @@ Note: although data is reported on a per-site basis, data is aggregated from all
 
 ### Example 3: Script calling syntax
 
-    python3 AstroBinUpload.py "/mnt/HDD_8TB/AstroBinTest/M51"
+    python3 AstroBinUpload.py "/mnt/preselected/AstroBinTest/M51"
 
 <div style="page-break-after: always;"></div>
 
