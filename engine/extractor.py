@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Header Extractor Module - AstroBin Upload Utility v2.0.1
+Header Extractor Module - AstroBin Upload Utility v2.0.2
 
 This module manages the high-speed extraction of metadata from multiple file 
 formats including FITS, XISF, and CSV. It is optimized for large image sets 

@@ -1,15 +1,23 @@
 # Changelog
 
+## [2.0.2] - 2026-02-11
+### Added
+- **Engine Integrity Verification**: Implemented a mandatory version handshake across all internal modules to prevent 'Frankenstein' installations and ensure architectural parity.
+- **Architectural Optimization**: Collapsed `utils.py` into the main entry point to reduce external dependencies and streamline initialization.
+
+### Changed
+- **Versioning Strategy**: Transitioned to module-level `__version__` signatures for all core components.
+
 ## [2.0.1] - 2026-02-11
 ### Added
-- **Custom Configuration Support**: Added the `--config` (or `-c`) flag to specify alternative `.ini` files, enabling easy switching between Mono, Color, and Remote equipment profiles.
-- **Auto-Config Generation**: Restored the ability to automatically generate a default `config.ini` template if the file is missing.
 - **Hardened Debugging System**: Complete overhaul of logging and diagnostic output to match and exceed v1.4.0 standards.
 - **Horizontal Header Logging**: Every file processed now has its raw recovered header dictionary printed horizontally in the log for immediate verification.
 - **Sequential Debug CSVs**: Automatic export of intermediate dataframes after every pipeline step when `--debug` is enabled.
 - **Emergency Diagnostic Dumps**: Automatic generation of `CRASH_DIAGNOSTIC.csv` and `emergency_raw_dump.csv` on any fatal error, ensuring data preservation even without debug flags.
 - **Advanced Error Tracking**: Global exception handling ensures all exit errors, including full Python tracebacks, are captured in `AstroBinUploader.log`.
 - **Smart Proximity Clustering**: Replaced coordinate rounding with distance-based grouping (~110m threshold) and Centroid Averaging, providing superior spatial resolution and resolving GPS drift boundaries.
+- **Custom Configuration Support**: Added the `--config` (or `-c`) flag to specify alternative `.ini` files, enabling easy switching between Mono, Color, and Remote equipment profiles.
+- **Auto-Config Generation**: Restored the ability to automatically generate a default `config.ini` template if the file is missing.
 
 ### Changed
 - **Logging Density**: Increased granular milestones for hardware overrides, master preference filtering, and calibration matching logic.

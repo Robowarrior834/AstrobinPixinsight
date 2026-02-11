@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Centralized Constants Module - AstroBin Upload Utility v2.0.1
+Centralized Constants Module - AstroBin Upload Utility v2.0.2
 
 This module serves as the single source of truth for all literal strings, 
 column names, and configuration keys used throughout the application. 

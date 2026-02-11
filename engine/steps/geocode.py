@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Geocoding & Site Management Module - AstroBin Upload Utility v2.0.1
+Geocoding & Site Management Module - AstroBin Upload Utility v2.0.2
 
 This module is responsible for enriching the session metadata with 
 geographical site information. It performs two primary functions:

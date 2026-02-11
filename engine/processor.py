@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Pipeline Processor Module - AstroBin Upload Utility v2.0.1
+Pipeline Processor Module - AstroBin Upload Utility v2.0.2
 
 This module implements the Pipeline Design Pattern, which is the architectural 
 core of the v2.0 application. By decoupling complex metadata transformations 

@@ -29,7 +29,7 @@ If both raw subs and a Master integration exist for the same hardware group, the
 ### Vectorization
 All statistical operations are performed using Pandas vectorized logic rather than Python loops, allowing the utility to process thousands of images in seconds.
 
-## Debugging and Logging (v2.0.1)
+## Debugging and Logging (v2.0.2)
 The system is built for high transparency and robust error recovery:
 -   **Traceability**: Every file's raw header is logged horizontally upon extraction.
 -   **Sequential Dumps**: Intermediate dataframes are exported after each pipeline step in `--debug` mode.

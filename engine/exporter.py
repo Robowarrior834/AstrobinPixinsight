@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Data Exporter Module - AstroBin Upload Utility v2.0.1
+Data Exporter Module - AstroBin Upload Utility v2.0.2
 
 Responsible for generating the final user-facing artifacts from the 
 processed session state. This module handles the conversion of internal 

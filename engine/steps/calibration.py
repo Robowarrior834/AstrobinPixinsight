@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Calibration Matching Module - AstroBin Upload Utility v2.0.1
+Calibration Matching Module - AstroBin Upload Utility v2.0.2
 
 This module implements the 'Calibration Matcher' logic, identifying which 
 Dark, Flat, and Bias frames belong to each Light frame. 

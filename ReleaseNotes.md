@@ -1,32 +1,51 @@
-# Release Notes - AstroBin Upload Utility v2.0.1
+# Release Notes - AstroBin Upload Utility v2.0.2 (Master Release)
 
 ## Overview
-v2.0.1 is a stabilization and hardening release focused on providing world-class debugging and logging visibility. Building on the architectural overhaul of v2.0.0, this version ensures that every data transformation is transparent and that no error goes unrecorded.
+v2.0.2 is the definitive "Master Release" of the 2.0 series. It represents a complete architectural evolution of the AstroBin Upload Utility, transforming it from a procedural script into a high-performance, modular, and hardened ETL (Extract, Transform, Load) pipeline. This release combines the performance of v2.0.0, the diagnostic visibility of v2.0.1, and the system integrity safeguards of v2.0.2.
 
-## Key Enhancements in v2.0.1
+---
 
-### 1. Hardened Diagnostic Dumps
-Troubleshooting is now effortless. If the pipeline encounters a problem, it automatically generates a `CRASH_DIAGNOSTIC.csv` representing the data's state at the moment of failure. If a crash occurs even earlier, an `emergency_raw_dump.csv` is created to save whatever was read from disk.
+## 🚀 Key Architectural Advancements (v2.0.0)
 
-### 2. High-Visibility Logging
-The logging system has been completely overhauled to match the density requested by power users. 
-- **Horizontal Header Echo**: Every file read now has its full raw metadata printed horizontally in the log for immediate verification.
-- **Milestone Tracking**: Detailed log entries for hardware overrides, master preference drops, and specific calibration frame assignments.
+### 1. The Pipeline Pattern
+The utility has been rebuilt from the ground up using a modular Step-based architecture. This decoupling ensures that each transformation stage (Normalization, Deduplication, Calibration Matching, etc.) is independent, robustly testable, and highly maintainable.
 
-### 3. Sequential Step Debugging
-When running with the `--debug` flag, the utility now exports a numbered sequence of CSV files (e.g., `debug_step_01_NormalizeHeadersStep.csv`) allowing you to watch your metadata transform through the pipeline one stage at a time.
+### 2. The Hybrid Handshake
+Matching calibration frames to lights now utilizes a multi-tier logic. The system prioritizes the unique electronic signature (`EGAIN`) of your camera sensor for high-precision pairing, while maintaining a seamless fallback to linear integer `GAIN` for legacy compatibility.
 
-### 4. Advanced Error Reporting
-The "silent stop" issue has been eliminated. A global exception handler now ensures that all fatal crashes record a full Python traceback in the log file, clearly identifying the failing file, function, and line number.
+### 3. Smart XISF & Master Extraction
+Our "PixInsight Aware" parser distinguishes between actual linear gain and electronic signatures. It also performs deep inspection of master frames to accurately extract integrated sub-exposure counts from both modern `ProcessingHistory` and legacy `HISTORY` comments.
 
-### 5. Centroid-Based Site Consolidation
-We have moved away from simple coordinate rounding (~150m grid). Version 2.0.1 uses **Smart Proximity Clustering** to group GPS drift within a 110m radius. The system then calculates the precise **Centroid (average)** of all captures in that cluster, providing superior spatial resolution and ensuring a single site is never split by arbitrary grid boundaries.
+---
 
-### 6. Custom Configuration Profiles
-By popular demand, you can now specify which `.ini` file to use via the `--config` (or `-c`) command line argument. This allows users to maintain separate configuration files for different telescopes, cameras, or locations (e.g., `config_mono.ini`, `config_color.ini`) without manually renaming files before execution.
+## 🛠️ Hardened Debugging & Transparency (v2.0.1)
 
-## Upgrading from v2.0.0
-This is a drop-in replacement for v2.0.0. No configuration changes are required.
+### 4. Automatic Crash Diagnostics
+Troubleshooting is now proactive. If the pipeline encounters an error, it automatically generates a `CRASH_DIAGNOSTIC.csv` capturing the data's exact state at failure. An `emergency_raw_dump.csv` is also created if a crash occurs during initial disk scanning.
+
+### 5. High-Visibility Logging
+The logging system has been overhauled for 100% data traceability:
+- **Horizontal Header Echo**: Every file read has its full raw metadata printed as a dictionary in the log.
+- **Granular Milestones**: Detailed tracking of hardware overrides, master preference filtering, and specific calibration assignments.
+- **Advanced Tracebacks**: Every fatal error records a full Python traceback in `AstroBinUploader.log`, eliminating "silent stops."
+
+### 6. Smart Proximity Clustering
+We have replaced simple coordinate rounding with **Distance-Based Clustering** (~110m threshold). This resolves "Site Fragmentation" caused by GPS drift and uses **Centroid Averaging** to calculate the most precise geographical coordinates for your final reports.
+
+---
+
+## 🛡️ Reliability & Flexibility (v2.0.2)
+
+### 7. Engine Integrity Verification
+To prevent "Frankenstein" installations, v2.0.2 introduces a mandatory **Version Handshake**. The utility verifies that every internal module is in perfect version parity at startup, ensuring you are always running a consistent and supported build.
+
+### 8. Custom Configuration Profiles
+Specify alternative `.ini` files via the `--config` (or `-c`) flag. This allows for effortless switching between Mono, Color, or Remote observatory profiles without manually renaming files.
+
+### 9. Streamlined Distribution
+The architecture has been optimized by collapsing redundant utility files into the primary entry point, reducing overhead and making the tool easier to audit and deploy.
+
+---
 
 ## Installation & Usage
-Please refer to the [README.md](README.md) for detailed installation and usage instructions.
+Please refer to the [README.md](README.md) for detailed installation and usage instructions. v2.0.2 is a drop-in replacement for all previous versions.

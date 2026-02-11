@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Standard Metadata Normalization Module - AstroBin Upload Utility v2.0.1
+Standard Metadata Normalization Module - AstroBin Upload Utility v2.0.2
 
 This module implements the first stage of the transformation pipeline: 
 'NormalizeHeadersStep'. Its primary responsibility is to take the raw, 

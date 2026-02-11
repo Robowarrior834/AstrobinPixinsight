@@ -1,4 +1,4 @@
-# AstroBin Upload Utility v2.0.1
+# AstroBin Upload Utility v2.0.2
 Scripts to process FITS/XISF headers and create Astrobin data acquisition file and summary text.
 
 Usage:
@@ -129,7 +129,7 @@ If you run the script when the config.ini file exists and pass no arguments, an 
 
 ### **Using Alternative Configuration Files**
 
-Version 2.0.1 allows you to specify a custom configuration file using the `--config` (or `-c`) flag. 
+Version 2.0.2 allows you to specify a custom configuration file using the `--config` (or `-c`) flag. 
 
     python3 AstroBinUpload.py "/path/to/my/data" --config my_remote_setup.ini
 
@@ -320,7 +320,7 @@ All directory arguments are assumed to belong to one target. Again the first dir
 
     python3 AstroBinUpload.py "dir 1" "dir 2" ... --debug
 
-Version 2.0.1 introduces a hardened diagnostic system designed for high visibility:
+Version 2.0.2 introduces a hardened diagnostic system designed for high visibility:
 
 1.  **Sequential Debug CSVs**: When running with `--debug`, the utility dumps a numbered sequence of processed header files to the `AstroBinUploadInfo` directory. This allows you to inspect the data at every stage of the transformation (e.g., `debug_step_01_NormalizeHeadersStep.csv`, `debug_step_04_CalibrationMatcherStep.csv`).
 

@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Models Module - AstroBin Upload Utility v2.0.1
+Models Module - AstroBin Upload Utility v2.0.2
 
 This module defines the core data structures and state containers used 
 throughout the application. By employing Python Dataclasses and strong 

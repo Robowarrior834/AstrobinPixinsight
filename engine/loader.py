@@ -1,5 +1,6 @@
+__version__ = '2.0.2'
 """
-Configuration Loader Module - AstroBin Upload Utility v2.0.1
+Configuration Loader Module - AstroBin Upload Utility v2.0.2
 
 Responsible for the ingestion and normalization of the 'config.ini' file. 
 This module ensures that the application's runtime settings are correctly 
