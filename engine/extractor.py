@@ -1,5 +1,5 @@
 """
-Header Extractor Module - AstroBin Upload Utility v2.0.0
+Header Extractor Module - AstroBin Upload Utility v2.0.1
 
 This module manages the high-speed extraction of metadata from multiple file 
 formats including FITS, XISF, and CSV. It is optimized for large image sets 
@@ -106,17 +106,28 @@ class HeaderExtractor:
         Returns:
             Optional[Dict[str, Any]]: Dictionary of header keywords, or None on failure.
         """
+        logger = logging.getLogger("AstroBinV2")
+        logger.info(f"Processing headers for file: {os.path.basename(filepath)}")
         try:
             if filepath.lower().endswith(('.fits', '.fit', '.fts')):
                 hdr = self._read_fits(filepath)
+                logger.info(f"Successfully read FITS header from {filepath}")
             elif filepath.lower().endswith('.xisf'):
                 hdr = self._read_xisf(filepath)
+                logger.info(f"Successfully read XISF header from {filepath}")
             else:
+                logger.warning(f"Unsupported file format: {filepath}")
                 return None
             
             # Post-parsing cleanup: Strip quotes often found in raw FITS string values
-            return {k: v.strip("'").strip('"') if isinstance(v, str) else v for k, v in hdr.items()}
+            cleaned_hdr = {k: v.strip("'").strip('"') if isinstance(v, str) else v for k, v in hdr.items()}
+            
+            # Horizontal Header Printing (Essential requirement)
+            logger.info(f"Recovered Header: {cleaned_hdr}")
+            
+            return cleaned_hdr
         except Exception as e:
+            logger.error(f"Error parsing headers for {filepath}: {str(e)}")
             # Silent failure for individual files to prevent pipeline crashing
             return None
 

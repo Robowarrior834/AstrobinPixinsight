@@ -1,5 +1,5 @@
 """
-Vectorized Aggregation Engine - AstroBin Upload Utility v2.0.0
+Vectorized Aggregation Engine - AstroBin Upload Utility v2.0.1
 
 This module implements the final transformation stage of the pipeline: 
 Summarizing hundreds or thousands of individual frame headers into a 
@@ -15,6 +15,7 @@ It utilizes high-speed Pandas vectorized operations for:
 """
 
 import pandas as pd
+import logging
 from datetime import timedelta
 from models import SessionState
 from constants import ImageType, InternalColumns
@@ -33,10 +34,13 @@ class AggregationStep:
         Returns:
             SessionState: The state with populated aggregated_df.
         """
+        logger = logging.getLogger("AstroBinV2")
+        logger.info("Aggregating parameters...")
         df = state.processed_df
         if df.empty: return state
 
         # --- Stage 1: Temporal Normalization ---
+        logger.info("Performing temporal normalization")
 
         # Ensure observation dates are proper datetime objects for vectorized math
         df[InternalColumns.DATE_OBS] = pd.to_datetime(df[InternalColumns.DATE_OBS], errors='coerce')
@@ -66,6 +70,7 @@ class AggregationStep:
         # If use_obs_date is False, we shift frames taken after midnight to the 
         # previous day's date so they appear as part of a single continuous night.
         if not state.config.use_obs_date:
+            logger.info("Applying overnight date shifting")
             time_diff = df[InternalColumns.DATE_OBS].diff()
             session_ids = (time_diff > pd.Timedelta(hours=5)).cumsum()
             
@@ -99,6 +104,7 @@ class AggregationStep:
             print("\n")
 
         # --- Stage 3: Aggregation ---
+        logger.info("Grouping and summarizing metadata")
 
         # Define the primary keys for grouping data
         agg_cols = [
@@ -166,5 +172,25 @@ class AggregationStep:
         }
 
         # Perform the actual vectorized aggregation
-        state.aggregated_df = df.groupby(agg_cols, observed=True).agg(**rules).reset_index()
+        agg_df = df.groupby(agg_cols, observed=True).agg(**rules).reset_index()
+
+        # --- Stage 4: Filter Mapping & Logging ---
+        logger = logging.getLogger("AstroBinV2")
+        filter_dict = state.config.filters
+        
+        def map_filter(name):
+            name_str = str(name).strip()
+            if name_str in filter_dict:
+                code = filter_dict[name_str]
+                logger.debug(f"Filter Mapping: SUCCESS - Mapped '{name_str}' to code '{code}'")
+                return code
+            else:
+                logger.debug(f"Filter Mapping: FAILURE - No code found for '{name_str}', using original name.")
+                return name_str
+
+        if InternalColumns.FILTER_NAME in agg_df.columns:
+            agg_df['filter_code'] = agg_df[InternalColumns.FILTER_NAME].apply(map_filter)
+
+        state.aggregated_df = agg_df
         return state
+                        

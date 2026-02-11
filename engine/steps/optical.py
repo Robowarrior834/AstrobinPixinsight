@@ -1,5 +1,5 @@
 """
-Optical Parameter Calculation Module - AstroBin Upload Utility v2.0.0
+Optical Parameter Calculation Module - AstroBin Upload Utility v2.0.1
 
 This module calculates critical optical metrics for Light frames that are 
 required by AstroBin's technical cards.
@@ -32,6 +32,10 @@ class OpticalParameterStep:
         Returns:
             SessionState: The state with populated HFR, FWHM, and Imscale.
         """
+        import logging
+        logger = logging.getLogger("AstroBinV2")
+        logger.info("Processing optical parameters and calculating star metrics")
+        
         df = state.processed_df
         if df.empty: return state
 

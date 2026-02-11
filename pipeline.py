@@ -1,5 +1,5 @@
 """
-Legacy Orchestration Pipeline - AstroBin Upload Utility v2.0.0
+Legacy Orchestration Pipeline - AstroBin Upload Utility v2.0.1
 
 This module contains the AstroBinProcessor class, which was the primary 
 orchestrator for the v1.x series and early v2.0 prototypes. While the 

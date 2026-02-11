@@ -1,5 +1,5 @@
 """
-Basic Import and Consistency Tests - AstroBin Upload Utility v2.0.0
+Basic Import and Consistency Tests - AstroBin Upload Utility v2.0.1
 
 Ensures that all core modules can be imported correctly and that 
 internal version tracking is synchronized across the application.
@@ -35,6 +35,6 @@ def test_version_consistency():
     import AstroBinUpload
     import utils
     
-    # Standard synchronization check for v2.0.0 release
+    # Standard synchronization check for v2.0.1 release
     assert AstroBinUpload.version == utils.utils_version, 
         f"Version mismatch: AstroBinUpload ({AstroBinUpload.version}) != utils ({utils.utils_version})"

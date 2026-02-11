@@ -1,5 +1,5 @@
 """
-Data Exporter Module - AstroBin Upload Utility v2.0.0
+Data Exporter Module - AstroBin Upload Utility v2.0.1
 
 Responsible for generating the final user-facing artifacts from the 
 processed session state. This module handles the conversion of internal 
@@ -63,9 +63,11 @@ class Exporter:
 
         # 2. Map Filter Names to IDs
         # AstroBin uses specific numeric IDs for many common filters. These 
-        # mappings are loaded from the [filters] section of config.ini.
-        filter_dict = state.config.filters
-        acq_source['filter_code'] = acq_source['filter'].apply(lambda x: filter_dict.get(str(x).strip(), x))
+        # mappings are loaded from the [filters] section of config.ini and 
+        # were pre-processed in the AggregationStep.
+        if 'filter_code' not in acq_source.columns:
+            filter_dict = state.config.filters
+            acq_source['filter_code'] = acq_source['filter'].apply(lambda x: filter_dict.get(str(x).strip(), x))
 
         # 3. Map Internal Column Names to AstroBin CSV Standards
         # This mapping bridges the gap between our internal lowercase keys 

@@ -1,5 +1,5 @@
 """
-General Utility Module - AstroBin Upload Utility v2.0.0
+General Utility Module - AstroBin Upload Utility v2.0.1
 
 Provides shared infrastructure for the application, including a robust 
 logging system and common helper functions. This module ensures that 
@@ -16,7 +16,7 @@ from typing import Tuple, Union, Optional
 import numpy as np
 
 # Version tracking for internal consistency across the utility suite
-utils_version = '2.0.0'
+utils_version = '2.0.1'
 
 def initialise_logging(log_filename: str, logger: logging.Logger = None) -> logging.Logger:
     """
@@ -69,6 +69,7 @@ def initialise_logging(log_filename: str, logger: logging.Logger = None) -> logg
 
         # Configure File Handler with UTF-8 support for astronomical symbols
         handler = logging.FileHandler(log_filename, encoding='utf-8')
+        # Format: 2026-02-11 09:18:39 - main - Line: 103 - INFO - message
         formatter = logging.Formatter(
             '%(asctime)s - %(funcname)s - Line: %(lineno)d - %(levelname)s - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'

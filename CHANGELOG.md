@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.1] - 2026-02-11
+### Added
+- **Hardened Debugging System**: Complete overhaul of logging and diagnostic output to match and exceed v1.4.0 standards.
+- **Horizontal Header Logging**: Every file processed now has its raw recovered header dictionary printed horizontally in the log for immediate verification.
+- **Sequential Debug CSVs**: Automatic export of intermediate dataframes after every pipeline step when `--debug` is enabled.
+- **Emergency Diagnostic Dumps**: Automatic generation of `CRASH_DIAGNOSTIC.csv` and `emergency_raw_dump.csv` on any fatal error, ensuring data preservation even without debug flags.
+- **Advanced Error Tracking**: Global exception handling ensures all exit errors, including full Python tracebacks, are captured in `AstroBinUploader.log`.
+
+### Changed
+- **Logging Density**: Increased granular milestones for hardware overrides, master preference filtering, and calibration matching logic.
+- **Sequential Golden Tests**: Updated testing protocol to mandate sequential execution and summary verification.
+
 ## [2.0.0] - 2026-02-10
 ### Added
 - **Hybrid Handshake Matching**: New calibration matching engine that prioritizes high-precision `EGAIN` signatures while falling back to linear `GAIN` for legacy compatibility.

@@ -1,5 +1,5 @@
 """
-Models Module - AstroBin Upload Utility v2.0.0
+Models Module - AstroBin Upload Utility v2.0.1
 
 This module defines the core data structures and state containers used 
 throughout the application. By employing Python Dataclasses and strong 

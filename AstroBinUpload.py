@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AstroBin Upload Utility v2.0.0 (Clean Slate)
+AstroBin Upload Utility v2.0.1 (Clean Slate)
 
 This is the primary entry point for the application. It orchestrates the 
 entire ETL (Extract, Transform, Load) workflow using a modern Pipeline 
@@ -50,7 +50,7 @@ def main():
     """
     # Define and parse CLI arguments
     parser = argparse.ArgumentParser(
-        description="AstroBin Upload Utility v2.0.0 - A high-performance ETL pipeline for astronomical metadata.",
+        description="AstroBin Upload Utility v2.0.1 - A high-performance ETL pipeline for astronomical metadata.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
         Example Usage:
@@ -90,60 +90,81 @@ def main():
     # Initialize the centralized logging system
     log_file = os.path.join(output_dir, 'AstroBinUploader.log')
     logger = initialise_logging(log_file)
+    logger.info("Logging initialized.")
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
     # Legacy-compliant console boot sequence for user feedback
+    logger.info(f"main version: 2.0.1")
+    logger.info(f"utils version: 2.0.1")
+    logger.info(f"Calling function and arguments provided: {sys.argv}")
+    logger.info("")
+
     print(f"Output directory: {output_dir}")
     print("Logging initialized.")
-    print(f"main version: 2.0.0")
-    print(f"utils version: 2.0.0")
-    print("Headers state initialized")
-    print("Processing state initialized")
-    print("Sites state initialized")
+    print(f"main version: 2.0.1")
+    print(f"utils version: 2.0.1")
 
-    # --- Step 2: Configuration & Data Loading ---
-    
-    # Load and normalize config.ini into a strongly-typed AppConfig object
-    loader = ConfigLoader(logger)
-    config = loader.load("config.ini")
+    try:
+        # --- Step 2: Configuration & Data Loading ---
+        
+        # Load and normalize config.ini into a strongly-typed AppConfig object
+        loader = ConfigLoader(logger)
+        config = loader.load("config.ini")
 
-    # Metadata Discovery: Scan file system or inject diagnostic CSV
-    print('\nReading FITS headers...\n')
-    extractor = HeaderExtractor(logger, config)
-    if args.test:
-        # Load from CSV for reproducibility and rapid testing
-        raw_df = extractor.extract_from_csv(args.test)
-    else:
-        # Parallelized scan of all provided directories
-        raw_df = extractor.extract_from_directories(directory_paths)
+        # Metadata Discovery: Scan file system or inject diagnostic CSV
+        print('\nReading FITS headers...\n')
+        extractor = HeaderExtractor(logger, config)
+        if args.test:
+            # Load from CSV for reproducibility and rapid testing
+            raw_df = extractor.extract_from_csv(args.test)
+        else:
+            # Parallelized scan of all provided directories
+            raw_df = extractor.extract_from_directories(directory_paths)
 
-    # --- Step 3: Pipeline Configuration ---
-    
-    # Build the transformation sequence using logical Steps.
-    # The order of these steps is critical as they have data dependencies.
-    processor = PipelineProcessor(logger)
-    processor.add_step(NormalizeHeadersStep())    # Stage 1: Sanitation & Overrides
-    processor.add_step(OpticalParameterStep())    # Stage 2: Resolution & Star Metrics
-    processor.add_step(DeduplicateStep())         # Stage 3: WBPP Filtering
-    processor.add_step(CalibrationMatcherStep())  # Stage 4: Gain Handshake & CAL matching
-    processor.add_step(GeocodeStep())             # Stage 5: Site identification
-    processor.add_step(AggregationStep())         # Stage 6: Vectorized Session Summary
+        # --- Step 3: Pipeline Configuration ---
+        
+        # Build the transformation sequence using logical Steps.
+        # The order of these steps is critical as they have data dependencies.
+        processor = PipelineProcessor(logger)
+        processor.add_step(NormalizeHeadersStep())    # Stage 1: Sanitation & Overrides
+        processor.add_step(OpticalParameterStep())    # Stage 2: Resolution & Star Metrics
+        processor.add_step(DeduplicateStep())         # Stage 3: WBPP Filtering
+        processor.add_step(CalibrationMatcherStep())  # Stage 4: Gain Handshake & CAL matching
+        processor.add_step(GeocodeStep())             # Stage 5: Site identification
+        processor.add_step(AggregationStep())         # Stage 6: Vectorized Session Summary
 
-    # --- Step 4: Execution & Export ---
-    
-    # Initialize the shared SessionState container
-    state = SessionState(config=config, raw_df=raw_df)
-    
-    # Execute the transformation pipeline
-    state = processor.run(state)
-    
-    # Export the final artifacts (Acquisition CSV and Text Summary)
-    output_basename = os.path.basename(args.directory_paths[0]).replace(" ", "_")
-    exporter = Exporter(logger)
-    exporter.export(state, output_basename, output_dir)
+        # --- Stage 4: Execution & Export ---
+        
+        # Initialize the shared SessionState container
+        state = SessionState(config=config, raw_df=raw_df)
+        
+        # Execute the transformation pipeline
+        state = processor.run(state, debug=args.debug, output_dir=output_dir)
+        
+        # Export the final artifacts (Acquisition CSV and Text Summary)
+        output_basename = os.path.basename(args.directory_paths[0]).replace(" ", "_")
+        exporter = Exporter(logger)
+        exporter.export(state, output_basename, output_dir)
 
-    print("\nProcessing complete.")
+        print("\nProcessing complete.")
+
+    except Exception as e:
+        # Final safety net: Ensure any unhandled exception is logged before the program dies
+        logger.error("The application encountered a fatal error and must exit.")
+        logger.exception(e)
+        
+        # If we have any data at all, dump it for emergency diagnostics
+        try:
+            if 'raw_df' in locals() and not raw_df.empty:
+                emergency_csv = os.path.join(output_dir, "emergency_raw_dump.csv")
+                raw_df.to_csv(emergency_csv, index=False)
+                print(f"Emergency data dump saved to: {emergency_csv}")
+        except: pass
+
+        print(f"\n[CRITICAL ERROR]: {str(e)}")
+        print(f"Detailed diagnostics have been saved to: {log_file}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

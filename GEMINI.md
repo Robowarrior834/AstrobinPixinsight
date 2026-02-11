@@ -61,22 +61,41 @@ v2.0.0 is a modular Pipeline Architecture. The logic is decoupled into a series 
     - State Notes: Any technical blockers or logic "gotchas" needed for an immediate start next time.
 
 ## Golden Tests
-Always run these tests after any code changes.
+
+Always run these tests sequentially after any code changes. You must display the full session summary (.txt output) for each test to verify accuracy.
+
+
 
 **TEST 1** (Michael Test - CSV):
-/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "/home/steve/Downloads/Jason Astrobin Data/Modified_headers_Michael.csv"
+
+/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "/home/steve/Downloads/Jason Astrobin Data/Modified_headers_Michael.csv" && cat "/home/steve/Downloads/Jason Astrobin Data/AstroBinUploadInfo/Jason_Astrobin_Data_session_summary.txt"
+
+
 
 **TEST 2** (31st May Test):
-/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025"
+
+/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025" && cat "/home/steve/Desktop/Pixinsight/LBN 548/AstroBinUploadInfo/LBN_548_session_summary.txt"
+
+
 
 **TEST 3** (13th June Test - STANDARD SANITY CHECK):
-/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/13th June 2025"
+
+/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Desktop/Pixinsight/LBN 548" "/mnt/raid0/AstroImaging/Preselected/Calibration data/13th June 2025" && cat "/home/steve/Desktop/Pixinsight/LBN 548/AstroBinUploadInfo/LBN_548_session_summary.txt"
+
+
 
 **TEST 4** (Mosaic Test):
-/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/mnt/raid0/AstroImaging/Preselected/North American Nebula (NGC_6997) Mosaic started July 9th 2025" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025"
+
+/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/mnt/raid0/AstroImaging/Preselected/North American Nebula (NGC_6997) Mosaic started July 9th 2025" "/mnt/raid0/AstroImaging/Preselected/Calibration data/31st May 2025" && cat "/mnt/raid0/AstroImaging/Preselected/North American Nebula (NGC_6997) Mosaic started July 9th 2025/AstroBinUploadInfo/North_American_Nebula_(NGC_6997)_Mosaic_started_July_9th_2025_session_summary.txt"
+
+
 
 **TEST 5** (Alpha Test - CSV):
-/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "/home/steve/Downloads/Jason Astrobin Data/flame_modified_Alpha_Zhang.csv"
+
+/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/home/steve/Downloads/Jason Astrobin Data" --test "/home/steve/Downloads/Jason Astrobin Data/flame_modified_Alpha_Zhang.csv" && cat "/home/steve/Downloads/Jason Astrobin Data/AstroBinUploadInfo/Jason_Astrobin_Data_session_summary.txt"
+
+
 
 **TEST 6** (Sadr Region Test):
-/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/mnt/raid0/AstroImaging/Preselected/Sadr Region"
+
+/mnt/raid0/Code/venvs/.astrovenv/bin/python3 AstroBinUpload.py "/mnt/raid0/AstroImaging/Preselected/Sadr Region" && cat "/mnt/raid0/AstroImaging/Preselected/Sadr Region/AstroBinUploadInfo/Sadr_Region_session_summary.txt"

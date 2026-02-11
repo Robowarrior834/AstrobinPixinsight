@@ -1,5 +1,5 @@
 """
-File Deduplication Module - AstroBin Upload Utility v2.0.0
+File Deduplication Module - AstroBin Upload Utility v2.0.1
 
 This module addresses the problem of 'metadata duplication' caused by image 
 preprocessing software (e.g., PixInsight WeightedBatchPreprocessing - WBPP). 
@@ -16,6 +16,7 @@ to ensure accurate total exposure calculations.
 
 import pandas as pd
 import re
+import logging
 from models import SessionState
 from constants import InternalColumns
 
@@ -33,8 +34,14 @@ class DeduplicateStep:
         Returns:
             SessionState: The state with a unique set of captures.
         """
+        logger = logging.getLogger("AstroBinV2")
+        logger.info("Executing WBPP deduplication filter")
+        
         df = state.processed_df
         if df.empty: return state
+
+        # Track count for logging
+        orig_count = len(df)
 
         # --- Stage 1: Base Filename Extraction ---
         # We use a non-greedy regex to strip off WBPP postfixes (e.g., _c, _cc, _r, _rn) 
@@ -70,6 +77,10 @@ class DeduplicateStep:
             
         # Reconstruct the dataframe from the unique selection
         if final_rows:
-            state.processed_df = pd.DataFrame(final_rows).drop(columns=['base_filename', 'ext_rank'])
+            new_df = pd.DataFrame(final_rows).drop(columns=['base_filename', 'ext_rank'])
+            new_count = len(new_df)
+            if orig_count != new_count:
+                logger.info(f"Deduplication: Removed {orig_count - new_count} duplicate/intermediate frames")
+            state.processed_df = new_df
         
         return state

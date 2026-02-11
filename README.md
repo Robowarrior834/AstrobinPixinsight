@@ -1,4 +1,4 @@
-# AstroBin Upload Utility v2.0.0
+# AstroBin Upload Utility v2.0.1
 Scripts to process FITS/XISF headers and create Astrobin data acquisition file and summary text.
 
 Usage:
@@ -308,18 +308,22 @@ The script expects to find all data contained in the directory passed to it. Sym
 
 All directory arguments are assumed to belong to one target. Again the first directory leaf, or child directory name should contain the target name for the output files to be named correctly.
 
-    ### **Debug output**
+    ### **Advanced Debugging and Error Handling**
 
     python3 AstroBinUpload.py "dir 1" "dir 2" ... --debug
 
-This will dump four processed header files to the AstroBinUploadInfo directory  as .csv files. The files are
+Version 2.0.1 introduces a hardened diagnostic system designed for high visibility:
 
-    Target_name_basic_headers.csv
-    Target_name_headers.csv
-    Target_name_modified.csv
-    Target_name_aggregated.csv
+1.  **Sequential Debug CSVs**: When running with `--debug`, the utility dumps a numbered sequence of processed header files to the `AstroBinUploadInfo` directory. This allows you to inspect the data at every stage of the transformation (e.g., `debug_step_01_NormalizeHeadersStep.csv`, `debug_step_04_CalibrationMatcherStep.csv`).
 
-These files can be used to assist the debugging of any issues
+2.  **Automatic Crash Diagnostics**: If the pipeline encounters a fatal error, it will automatically generate a `debug_step_XX_..._CRASH_DIAGNOSTIC.csv` representing the data's state at the moment of failure, even if `--debug` was not enabled.
+
+3.  **Emergency Data Dumps**: If a crash occurs before the pipeline starts (e.g., during extraction), an `emergency_raw_dump.csv` is created to preserve any headers successfully read from disk.
+
+4.  **High-Visibility Logging**: The `AstroBinUploader.log` now includes:
+    - **Horizontal Header Echo**: The full raw metadata dictionary for every file processed.
+    - **Milestone Tracking**: Detailed entries for hardware overrides, master preference drops, and calibration assignments.
+    - **Tracebacks**: Full Python tracebacks are captured for every fatal error to ensure rapid troubleshooting.
 
 ### **Diagnostic Test Mode**
 

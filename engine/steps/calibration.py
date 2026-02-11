@@ -1,5 +1,5 @@
 """
-Calibration Matching Module - AstroBin Upload Utility v2.0.0
+Calibration Matching Module - AstroBin Upload Utility v2.0.1
 
 This module implements the 'Calibration Matcher' logic, identifying which 
 Dark, Flat, and Bias frames belong to each Light frame. 
@@ -24,6 +24,8 @@ class CalibrationMatcherStep:
         """
         Executes matching logic with strict 'Light-Frame Authority' pruning.
         """
+        logger = logging.getLogger("AstroBinV2")
+        logger.info("Starting calibration matching process")
         df = state.processed_df
         if df.empty: return state
 
@@ -47,8 +49,12 @@ class CalibrationMatcherStep:
 
         df[InternalColumns.GAIN_MATCH] = df.apply(create_hybrid_key, axis=1)
         
+        unique_keys = df[InternalColumns.GAIN_MATCH].unique()
+        logger.debug(f"Calibration Handshake: Identified hybrid matching keys: {list(unique_keys)}")
+        
         # --- Stage 2: Light-Frame Authority (Strict Pruning) ---
         # Extract valid anchors from Light frames. 
+        logger.info("Identifying calibration frame anchors from light frames")
         is_light = df[InternalColumns.IMAGE_TYPE] == ImageType.LIGHT.value
         lights_auth = df[is_light].copy()
         
@@ -92,10 +98,13 @@ class CalibrationMatcherStep:
             df = df[~mask_orphaned].copy()
 
         # --- Stage 3: Segmentation ---
+        logger.info("Segmenting lights and calibration frames")
         lights_mask = df[InternalColumns.IMAGE_TYPE] == ImageType.LIGHT.value
         lights = df[lights_mask].copy()
         cals = df[~lights_mask].copy()
         
+        logger.info(f"Split DataFrame: {len(lights)} LIGHTS and {len(cals)} calibration frames")
+
         if lights.empty: 
             state.processed_df = df
             return state
@@ -105,6 +114,7 @@ class CalibrationMatcherStep:
             lights[col] = 0
 
         # --- Stage 4: Matching Loop with Master Preference ---
+        logger.info("Matching calibration frames to light frames")
         for idx, row in lights.iterrows():
             
             # 4a. Identify Candidates
@@ -154,9 +164,13 @@ class CalibrationMatcherStep:
                 return int(final_set[InternalColumns.NUMBER].sum())
 
             # 4c. Assign Counts
-            lights.at[idx, 'darks'] = resolve_count(dark_candidates)
-            lights.at[idx, 'bias']  = resolve_count(bias_candidates)
-            lights.at[idx, 'flats'] = resolve_count(flat_candidates)
+            d_count = resolve_count(dark_candidates)
+            b_count = resolve_count(bias_candidates)
+            f_count = resolve_count(flat_candidates)
+            
+            lights.at[idx, 'darks'] = d_count
+            lights.at[idx, 'bias']  = b_count
+            lights.at[idx, 'flats'] = f_count
             
             # DarkFlats usually don't have Masters in the same way, but applying safe logic
             df_candidates = cals[
@@ -164,7 +178,11 @@ class CalibrationMatcherStep:
                 (cals[InternalColumns.FILTER_NAME].str.lower() == str(row[InternalColumns.FILTER_NAME]).lower()) & \
                 (cals[InternalColumns.GAIN_MATCH] == row[InternalColumns.GAIN_MATCH])
             ]
-            lights.at[idx, 'flatDarks'] = int(df_candidates[InternalColumns.NUMBER].sum())
+            fd_count = int(df_candidates[InternalColumns.NUMBER].sum())
+            lights.at[idx, 'flatDarks'] = fd_count
+
+            if d_count > 0 or b_count > 0 or f_count > 0 or fd_count > 0:
+                logger.debug(f"Light Index {idx} ({row.get('filename', 'Unknown')}): Assigned {d_count} Darks, {f_count} Flats, {b_count} Bias, {fd_count} FlatDarks.")
 
         # --- Stage 5: Reintegration ---
         # Combine enriched lights with authority-validated calibration

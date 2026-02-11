@@ -1,5 +1,5 @@
 """
-Geocoding & Site Management Module - AstroBin Upload Utility v2.0.0
+Geocoding & Site Management Module - AstroBin Upload Utility v2.0.1
 
 This module is responsible for enriching the session metadata with 
 geographical site information. It performs two primary functions:
@@ -33,6 +33,10 @@ class GeocodeStep:
         Returns:
             SessionState: The state with enriched site metadata.
         """
+        import logging
+        logger = logging.getLogger("AstroBinV2")
+        logger.info("Identifying geographical site data and Bortle scales")
+        
         df = state.processed_df
         if df.empty: return state
 
