@@ -6,7 +6,7 @@ The AstroBin Upload Utility is an automated metadata extraction and aggregation 
 ## Architecture: The Pipeline Pattern
 The application follows a modular "Pipeline" architecture where each stage of the transformation is handled by an independent, testable Step:
 
-1.  **Loader**: Orchestrates the discovery of FITS and XISF files.
+1.  **Loader**: Orchestrates the discovery of FITS and XISF files and manages configuration profiles (supporting custom `.ini` files).
 2.  **Extractor**: High-speed parallel parsing of XML and binary headers.
 3.  **Normalization (NormalizeHeadersStep)**: Sanitizes inconsistent metadata and applies user-defined overrides.
 4.  **Deduplication (DeduplicateStep)**: Identifies and removes redundant files (e.g., WBPP postfixes).

@@ -2,7 +2,7 @@
 Scripts to process FITS/XISF headers and create Astrobin data acquisition file and summary text.
 
 Usage:
-`python3 AstroBinUpload.py [directory_paths]`
+`python3 AstroBinUpload.py [directory_paths] [--config config_file]`
 
 ## **Contents**
 
@@ -307,6 +307,12 @@ The script expects to find all data contained in the directory passed to it. Sym
     python3 AstroBinUpload.py "dir 1" "dir 2" .... 
 
 All directory arguments are assumed to belong to one target. Again the first directory leaf, or child directory name should contain the target name for the output files to be named correctly.
+
+### **Custom Configuration File**
+
+    python3 AstroBinUpload.py "dir 1" --config my_remote_setup.ini
+
+Version 2.0.1 allows you to specify a custom configuration file using the `--config` (or `-c`) flag. This is ideal for users who manage different setups (e.g., Mono vs Color, Remote vs Local) and wish to switch profiles without renaming files to `config.ini`.
 
     ### **Advanced Debugging and Error Handling**
 

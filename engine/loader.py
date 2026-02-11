@@ -44,8 +44,15 @@ class ConfigLoader:
             FileNotFoundError: If the configuration file cannot be found.
         """
         if not os.path.exists(filepath):
-            self.logger.error(f"Configuration file missing: {filepath}")
-            raise FileNotFoundError(f"Configuration file {filepath} is required for operation.")
+            if filepath == 'config.ini':
+                self.logger.info("config.ini missing. Generating default configuration template.")
+                self._generate_default_config(filepath)
+                print(f"\nA new {filepath} file was created. Please edit this before re-running the script.")
+                import sys
+                sys.exit(0)
+            else:
+                self.logger.error(f"Custom configuration file missing: {filepath}")
+                raise FileNotFoundError(f"The specified configuration file '{filepath}' was not found.")
 
         # Load the raw INI file using ConfigObj for better section management
         config_obj = ConfigObj(filepath, encoding='utf-8')
@@ -67,6 +74,58 @@ class ConfigLoader:
             secret=normalized.get(ConfigSections.SECRET, {}),
             use_obs_date=use_obs_date
         )
+
+    def _generate_default_config(self, filepath: str):
+        """Creates a fresh config.ini with standard templates."""
+        config = ConfigObj(filepath, encoding='utf-8')
+        config[ConfigSections.DEFAULTS] = {
+            'IMAGETYP': 'LIGHT',
+            'EXPOSURE': 0.0,
+            'DATE-OBS': '2023-01-01',
+            'XBINNING': 1,
+            'GAIN': -1,
+            'EGAIN': -1,
+            'INSTRUME': 'None',
+            'TELESCOP': 'None',
+            'FOCNAME': 'None',
+            'FWHEEL': 'None',
+            'ROTATOR': 'None',
+            'XPIXSZ': 3.76,
+            'CCD-TEMP': -10,
+            'FOCALLEN': 500,
+            'FOCRATIO': 5.0,
+            'SITE': 'Unknown Site',
+            'SITELAT': 0.0,
+            'SITELONG': 0.0,
+            'BORTLE': 4,
+            'SQM': 21.0,
+            'FILTER': 'No Filter',
+            'OBJECT': 'No target',
+            'FOCTEMP': 20,
+            'HFR': 1.6,
+            'SWCREATE': 'Unknown package',
+            'USEOBSDATE': 'True'
+        }
+        config[ConfigSections.OVERRIDE] = {
+            'SITE': 'SITENAME',
+            'EXPOSURE': 'EXPTIME',
+            'INSTRUME': 'CAMERA_MODEL'
+        }
+        config[ConfigSections.FILTERS] = {
+            'Ha': 4663,
+            'SII': 4844,
+            'OIII': 4752,
+            'Red': 4649,
+            'Green': 4643,
+            'Blue': 4637,
+            'Lum': 2906
+        }
+        config[ConfigSections.SECRET] = {
+            'lightpollution_api_key': 'xxxxxxxxxxxxx',
+            'EMAIL_ADDRESS': 'id@provider.com'
+        }
+        config[ConfigSections.SITES] = {}
+        config.write()
 
     def _normalize_defaults(self, defaults: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -22,6 +22,9 @@ The "silent stop" issue has been eliminated. A global exception handler now ensu
 ### 5. Centroid-Based Site Consolidation
 We have moved away from simple coordinate rounding (~150m grid). Version 2.0.1 uses **Smart Proximity Clustering** to group GPS drift within a 110m radius. The system then calculates the precise **Centroid (average)** of all captures in that cluster, providing superior spatial resolution and ensuring a single site is never split by arbitrary grid boundaries.
 
+### 6. Custom Configuration Profiles
+By popular demand, you can now specify which `.ini` file to use via the `--config` (or `-c`) command line argument. This allows users to maintain separate configuration files for different telescopes, cameras, or locations (e.g., `config_mono.ini`, `config_color.ini`) without manually renaming files before execution.
+
 ## Upgrading from v2.0.0
 This is a drop-in replacement for v2.0.0. No configuration changes are required.
 

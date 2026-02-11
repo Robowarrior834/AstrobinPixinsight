@@ -2,6 +2,8 @@
 
 ## [2.0.1] - 2026-02-11
 ### Added
+- **Custom Configuration Support**: Added the `--config` (or `-c`) flag to specify alternative `.ini` files, enabling easy switching between Mono, Color, and Remote equipment profiles.
+- **Auto-Config Generation**: Restored the ability to automatically generate a default `config.ini` template if the file is missing.
 - **Hardened Debugging System**: Complete overhaul of logging and diagnostic output to match and exceed v1.4.0 standards.
 - **Horizontal Header Logging**: Every file processed now has its raw recovered header dictionary printed horizontally in the log for immediate verification.
 - **Sequential Debug CSVs**: Automatic export of intermediate dataframes after every pipeline step when `--debug` is enabled.

@@ -76,6 +76,13 @@ def main():
         action='store_true', 
         help='Enable verbose debug logging and preserve intermediate dataframes for troubleshooting.'
     )
+    parser.add_argument(
+        '--config', '-c',
+        type=str,
+        default='config.ini',
+        metavar='CONFIG_FILE',
+        help='Specify a custom configuration file (default: config.ini).'
+    )
     args = parser.parse_args()
 
     # --- Step 1: Environment Setup ---
@@ -110,7 +117,7 @@ def main():
         
         # Load and normalize config.ini into a strongly-typed AppConfig object
         loader = ConfigLoader(logger)
-        config = loader.load("config.ini")
+        config = loader.load(args.config)
 
         # Metadata Discovery: Scan file system or inject diagnostic CSV
         print('\nReading FITS headers...\n')
