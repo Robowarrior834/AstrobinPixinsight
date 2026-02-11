@@ -229,6 +229,13 @@ def main():
         else:
             # Parallelized scan of all provided directories
             raw_df = extractor.extract_from_directories(directory_paths)
+            
+            # NEW: Export raw headers if debug is enabled. 
+            # This file is perfectly matched for the --test injection point.
+            if args.debug and not raw_df.empty:
+                raw_csv_path = os.path.join(output_dir, "debug_step_00_RawHeaders.csv")
+                raw_df.to_csv(raw_csv_path, index=False)
+                logger.info(f"Raw scanned headers exported to {raw_csv_path}")
 
         # --- Step 3: Pipeline Configuration ---
         

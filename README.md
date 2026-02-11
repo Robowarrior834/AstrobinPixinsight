@@ -316,28 +316,42 @@ The script expects to find all data contained in the directory passed to it. Sym
 
 All directory arguments are assumed to belong to one target. Again the first directory leaf, or child directory name should contain the target name for the output files to be named correctly.
 
-### **Advanced Debugging and Error Handling**
+### **Advanced Debugging and Testing**
 
-    python3 AstroBinUpload.py "dir 1" "dir 2" ... --debug
+Version 2.0.2 provides a robust diagnostic system designed for high-precision troubleshooting and workflow verification.
 
-Version 2.0.2 introduces a hardened diagnostic system designed for high visibility:
+#### **1. Generating Debug Data**
+To inspect the internal state of your metadata as it flows through the pipeline, run the utility with the `--debug` flag:
 
-1.  **Sequential Debug CSVs**: When running with `--debug`, the utility dumps a numbered sequence of processed header files to the `AstroBinUploadInfo` directory. This allows you to inspect the data at every stage of the transformation (e.g., `debug_step_01_NormalizeHeadersStep.csv`, `debug_step_04_CalibrationMatcherStep.csv`).
+    python3 AstroBinUpload.py "/path/to/my/data" --debug
 
-2.  **Automatic Crash Diagnostics**: If the pipeline encounters a fatal error, it will automatically generate a `debug_step_XX_..._CRASH_DIAGNOSTIC.csv` representing the data's state at the moment of failure, even if `--debug` was not enabled.
+When enabled, the utility generates a sequence of CSV files in the `AstroBinUploadInfo` directory:
+- **`debug_step_00_RawHeaders.csv`**: The exact metadata extracted from your files BEFORE any processing.
+- **`debug_step_01_NormalizeHeadersStep.csv`**: Data after hardware overrides and sanitization.
+- **`debug_step_04_CalibrationMatcherStep.csv`**: Data after calibration frames have been assigned.
+- **`debug_step_06_AggregationStep.csv`**: The final grouped statistics.
 
-3.  **Emergency Data Dumps**: If a crash occurs before the pipeline starts (e.g., during extraction), an `emergency_raw_dump.csv` is created to preserve any headers successfully read from disk.
+#### **2. Using the Diagnostic Test Mode (`--test`)**
+The `--test` flag allows you to re-run the entire pipeline using a CSV file instead of scanning your hard drive. This is ideal for verifying configuration changes or reproducing bugs.
 
-4.  **High-Visibility Logging**: The `AstroBinUploader.log` now includes:
-    - **Horizontal Header Echo**: The full raw metadata dictionary for every file processed.
-    - **Milestone Tracking**: Detailed entries for hardware overrides, master preference drops, and calibration assignments.
-    - **Tracebacks**: Full Python tracebacks are captured for every fatal error to ensure rapid troubleshooting.
+**Crucial Note**: Because the test mode injects data at the very beginning of the pipeline, **you must only use files containing raw metadata**. 
 
-### **Diagnostic Test Mode**
+**Supported Files for `--test`:**
+1.  **`debug_step_00_RawHeaders.csv`**: Use this for standard testing. It is generated every time you run a successful scan with `--debug`.
+2.  **`emergency_raw_dump.csv`**: Use this for crash recovery. It is generated automatically if the utility encounters a fatal error during a scan.
 
-    python3 AstroBinUpload.py "/path/to/data/dir" --test headers.csv
+**Example Usage:**
+    
+    python3 AstroBinUpload.py "/path/to/my/data" --test "/path/to/debug_step_00_RawHeaders.csv"
 
-You can inject a CSV of headers for diagnostic purposes instead of scanning directories using the `--test` flag. This requires a valid directory path and a filename (e.g., a CSV exported via `--debug` in a previous run). The script will look for the CSV file inside the first directory path provided. Outputs, including the acquisition.csv and summary, will be written to the `AstroBinUploadInfo` folder within that same directory.
+#### **3. Error Handling and Logging**
+If the utility encounters a fatal error, it automatically performs an "Emergency Dump":
+- A full Python traceback is recorded in `AstroBinUploader.log`, identifying the exact line of failure.
+- Whatever metadata was successfully scanned is saved to **`emergency_raw_dump.csv`**. 
+- This dump can be fed directly back into the utility using the `--test` flag once the issue is resolved.
+
+The log file also includes a **Horizontal Header Echo**, which prints the full raw metadata dictionary for every file processed (visible when logging level is set to DEBUG).
+
 
 ## **Diagnostic Mode**
 

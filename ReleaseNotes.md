@@ -39,10 +39,13 @@ We have replaced simple coordinate rounding with **Distance-Based Clustering** (
 ### 7. Engine Integrity Verification
 To prevent "Frankenstein" installations, v2.0.2 introduces a mandatory **Version Handshake**. The utility verifies that every internal module is in perfect version parity at startup, ensuring you are always running a consistent and supported build.
 
-### 8. Custom Configuration Profiles
+### 8. Refined Testing Methodology
+We have simplified the diagnostic workflow. Running with `--debug` now generates a **`debug_step_00_RawHeaders.csv`** file. This file captures the exact metadata read from disk and is the primary supported source for the **`--test`** flag, allowing for 100% accurate reproduction of any imaging session.
+
+### 9. Custom Configuration Profiles
 Specify alternative `.ini` files via the `--config` (or `-c`) flag. This allows for effortless switching between Mono, Color, or Remote observatory profiles without manually renaming files.
 
-### 9. Streamlined Distribution
+### 10. Streamlined Distribution
 The architecture has been optimized by collapsing redundant utility files into the primary entry point, reducing overhead and making the tool easier to audit and deploy.
 
 ---

@@ -29,11 +29,12 @@ If both raw subs and a Master integration exist for the same hardware group, the
 ### Vectorization
 All statistical operations are performed using Pandas vectorized logic rather than Python loops, allowing the utility to process thousands of images in seconds.
 
-## Debugging and Logging (v2.0.2)
+## Debugging and Testing (v2.0.2)
 The system is built for high transparency and robust error recovery:
--   **Traceability**: Every file's raw header is logged horizontally upon extraction.
--   **Sequential Dumps**: Intermediate dataframes are exported after each pipeline step in `--debug` mode.
--   **Automatic Diagnostics**: Any fatal crash triggers an automatic emergency CSV dump of the current data state.
+-   **Raw Data Capture**: `debug_step_00_RawHeaders.csv` stores the metadata exactly as read from disk. This is the **only supported source** for standard re-testing via the `--test` flag.
+-   **Emergency Diagnostics**: Any fatal crash triggers an automatic generation of `emergency_raw_dump.csv`, preserving scanned metadata for immediate recovery using the `--test` flag.
+-   **Traceability**: Every file's raw header is logged horizontally (DEBUG level) upon extraction.
+-   **Sequential Dumps**: Intermediate dataframes are exported after each pipeline step in `--debug` mode for stage-by-stage auditing.
 -   **Full Exception Capture**: Global error handling ensures all crashes record a full Python traceback in the log file.
 
 ## Usage

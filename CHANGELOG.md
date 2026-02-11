@@ -4,6 +4,7 @@
 ### Added
 - **Engine Integrity Verification**: Implemented a mandatory version handshake across all internal modules to prevent 'Frankenstein' installations and ensure architectural parity.
 - **Architectural Optimization**: Collapsed `utils.py` into the main entry point to reduce external dependencies and streamline initialization.
+- **Refined Testing Methodology**: Introduced `debug_step_00_RawHeaders.csv` to capture raw extraction state, providing a stable and primary source for the `--test` diagnostic mode.
 
 ### Changed
 - **Versioning Strategy**: Transitioned to module-level `__version__` signatures for all core components.
