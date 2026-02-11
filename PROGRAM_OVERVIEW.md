@@ -11,7 +11,7 @@ The application follows a modular "Pipeline" architecture where each stage of th
 3.  **Normalization (NormalizeHeadersStep)**: Sanitizes inconsistent metadata and applies user-defined overrides.
 4.  **Deduplication (DeduplicateStep)**: Identifies and removes redundant files (e.g., WBPP postfixes).
 5.  **Calibration Matching (CalibrationMatcherStep)**: Associates Darks, Flats, and Bias frames using the Hybrid Handshake (EGAIN/GAIN).
-6.  **Geocoding (GeocodeStep)**: Maps coordinates to sites and applies stable rounding for site consolidation.
+6.  **Geocoding (GeocodeStep)**: Uses Smart Proximity Clustering (~110m threshold) to group drifting GPS coordinates into stable sites, calculating the precise Centroid (average) for each cluster.
 7.  **Aggregation (AggregationStep)**: Vectorized statistical reduction of thousands of frames into session-level summaries.
 8.  **Exporter**: Generates the final AstroBin-ready CSV and human-readable session summary.
 

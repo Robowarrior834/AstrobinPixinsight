@@ -25,7 +25,7 @@ class GeocodeStep:
     """
     def execute(self, state: SessionState) -> SessionState:
         """
-        Executes the geocoding enrichment logic.
+        Executes the geocoding enrichment logic using Distance-Based Clustering.
 
         Args:
             state (SessionState): The current pipeline state.
@@ -33,47 +33,113 @@ class GeocodeStep:
         Returns:
             SessionState: The state with enriched site metadata.
         """
-        import logging
         logger = logging.getLogger("AstroBinV2")
-        logger.info("Identifying geographical site data and Bortle scales")
+        logger.info("Identifying geographical site data using Smart Proximity Clustering")
         
         df = state.processed_df
         if df.empty: return state
 
         config = state.config
-        logger = logging.getLogger("AstroBinV2")
 
         # --- Stage 1: Coordinate Propagation ---
         # Calibration frames often miss SITELAT/SITELONG headers. We force 
         # them to align with the nearest Light frames.
         df = self._align_coordinates(df, logger)
 
-        # --- Stage 2: Site Identification ---
-        # Load the local sites database from config for high-speed fuzzy lookup.
+        # --- Stage 2: Smart Proximity Clustering ---
+        # Instead of arbitrary rounding, we find clusters of coordinates 
+        # that are close to each other (e.g., < 150m) and treat them as one site.
+        
+        # 1. Identify all unique coordinate pairs from all frames
+        coords_df = df[[InternalColumns.SITE_LAT, InternalColumns.SITE_LONG]].copy()
+        coords_df[InternalColumns.SITE_LAT] = pd.to_numeric(coords_df[InternalColumns.SITE_LAT], errors='coerce').fillna(0.0)
+        coords_df[InternalColumns.SITE_LONG] = pd.to_numeric(coords_df[InternalColumns.SITE_LONG], errors='coerce').fillna(0.0)
+        
+        unique_coords = coords_df.drop_duplicates().reset_index(drop=True)
+        unique_coords['site_cluster'] = -1
+        
+        # 2. Distance-Based Grouping (greedy approach)
+        # Threshold: 0.00135 degrees is roughly 150m at the equator.
+        # We'll use a slightly tighter 100m threshold (0.0009 degrees) for precision.
+        dist_threshold = 0.001 # approx 110m
+        cluster_id = 0
+        
+        for i in range(len(unique_coords)):
+            if unique_coords.at[i, 'site_cluster'] == -1:
+                # Start a new cluster
+                unique_coords.at[i, 'site_cluster'] = cluster_id
+                
+                # Find all other points within the threshold
+                lat_ref = unique_coords.at[i, InternalColumns.SITE_LAT]
+                lon_ref = unique_coords.at[i, InternalColumns.SITE_LONG]
+                
+                # Simple Euclidean approximation for performance 
+                # (accurate enough for small GPS drifts)
+                dist = np.sqrt(
+                    (unique_coords[InternalColumns.SITE_LAT] - lat_ref)**2 + 
+                    (unique_coords[InternalColumns.SITE_LONG] - lon_ref)**2
+                )
+                
+                unique_coords.loc[dist < dist_threshold, 'site_cluster'] = cluster_id
+                cluster_id += 1
+
+        # 3. Calculate Cluster Centroids (Averaging)
+        # This solves the precision issue by using the mean of all drift readings.
+        centroids = unique_coords.groupby('site_cluster').agg({
+            InternalColumns.SITE_LAT: 'mean',
+            InternalColumns.SITE_LONG: 'mean'
+        }).reset_index()
+        
+        # 4. Map Clusters back to the primary DataFrame
+        # Merge clusters to unique_coords, then merge that to the main df
+        df = df.merge(
+            unique_coords[[InternalColumns.SITE_LAT, InternalColumns.SITE_LONG, 'site_cluster']], 
+            on=[InternalColumns.SITE_LAT, InternalColumns.SITE_LONG], 
+            how='left'
+        )
+        
+        # Replace original drifting coords with stable Centroid coords
+        df = df.drop(columns=[InternalColumns.SITE_LAT, InternalColumns.SITE_LONG]).merge(
+            centroids, on='site_cluster', how='left'
+        )
+
+        # --- Stage 3: Site Identification (Database Lookup) ---
         sites_db = pd.DataFrame(config.sites).transpose()
         
-        # Iterate through frames to assign site metadata. 
-        # Using .iterrows() here to support potential multi-site sessions.
-        for idx, row in df.iterrows():
-            # Round coordinates to 3 decimals (~110m) to consolidate slight GPS drift
-            lat = round(float(row[InternalColumns.SITE_LAT]), 3)
-            lon = round(float(row[InternalColumns.SITE_LONG]), 3)
+        # Iterate through distinct clusters to assign site metadata
+        cluster_results = {}
+        for cid, group in df.groupby('site_cluster'):
+            avg_lat = group[InternalColumns.SITE_LAT].iloc[0]
+            avg_lon = group[InternalColumns.SITE_LONG].iloc[0]
             
-            # Fuzzy Coordinate Lookup (using precision defined in config)
-            site_info = self._find_site_in_db(sites_db, lat, lon, state.config.precision)
+            # Fuzzy Coordinate Lookup in the local DB
+            site_info = self._find_site_in_db(sites_db, avg_lat, avg_lon, state.config.precision)
             
             if site_info is not None:
-                # Map data from the database match
-                df.at[idx, InternalColumns.SITE_NAME] = str(site_info.name)
-                df.at[idx, InternalColumns.BORTLE] = int(site_info.get('bortle', config.defaults.get('BORTLE', 4)))
-                df.at[idx, InternalColumns.MEAN_SQM] = float(site_info.get('sqm', config.defaults.get('SQM', 21.0)))
+                cluster_results[cid] = {
+                    InternalColumns.SITE_NAME: str(site_info.name),
+                    InternalColumns.BORTLE: int(site_info.get('bortle', config.defaults.get('BORTLE', 4))),
+                    InternalColumns.MEAN_SQM: float(site_info.get('sqm', config.defaults.get('SQM', 21.0)))
+                }
             else:
-                # Fallback to global defaults if no site match is found
-                df.at[idx, InternalColumns.SITE_NAME] = str(config.defaults.get('SITE', 'Unknown Site'))
-                df.at[idx, InternalColumns.BORTLE] = int(config.defaults.get('BORTLE', 4))
-                df.at[idx, InternalColumns.MEAN_SQM] = float(config.defaults.get('SQM', 21.0))
+                cluster_results[cid] = {
+                    InternalColumns.SITE_NAME: str(config.defaults.get('SITE', 'Unknown Site')),
+                    InternalColumns.BORTLE: int(config.defaults.get('BORTLE', 4)),
+                    InternalColumns.MEAN_SQM: float(config.defaults.get('SQM', 21.0))
+                }
+                logger.debug(f"Site Cluster {cid}: No DB match for averaged coords ({avg_lat:.4f}, {avg_lon:.4f}). Used defaults.")
 
-        state.processed_df = df
+        # Final Assignment
+        for cid, metadata in cluster_results.items():
+            mask = df['site_cluster'] == cid
+            df.loc[mask, InternalColumns.SITE_NAME] = metadata[InternalColumns.SITE_NAME]
+            df.loc[mask, InternalColumns.BORTLE] = metadata[InternalColumns.BORTLE]
+            df.loc[mask, InternalColumns.MEAN_SQM] = metadata[InternalColumns.MEAN_SQM]
+
+        logger.info(f"Consolidated GPS drift into {cluster_id} unique imaging site(s).")
+        
+        # Cleanup internal tracking columns before returning
+        state.processed_df = df.drop(columns=['site_cluster'])
         return state
 
     def _align_coordinates(self, df: pd.DataFrame, logger: logging.Logger) -> pd.DataFrame:

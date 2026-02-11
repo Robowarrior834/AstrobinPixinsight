@@ -7,6 +7,7 @@
 - **Sequential Debug CSVs**: Automatic export of intermediate dataframes after every pipeline step when `--debug` is enabled.
 - **Emergency Diagnostic Dumps**: Automatic generation of `CRASH_DIAGNOSTIC.csv` and `emergency_raw_dump.csv` on any fatal error, ensuring data preservation even without debug flags.
 - **Advanced Error Tracking**: Global exception handling ensures all exit errors, including full Python tracebacks, are captured in `AstroBinUploader.log`.
+- **Smart Proximity Clustering**: Replaced coordinate rounding with distance-based grouping (~110m threshold) and Centroid Averaging, providing superior spatial resolution and resolving GPS drift boundaries.
 
 ### Changed
 - **Logging Density**: Increased granular milestones for hardware overrides, master preference filtering, and calibration matching logic.
@@ -17,7 +18,6 @@
 - **Hybrid Handshake Matching**: New calibration matching engine that prioritizes high-precision `EGAIN` signatures while falling back to linear `GAIN` for legacy compatibility.
 - **Smart XISF Extraction**: Enhanced parser that automatically detects electronic gain signatures in PixInsight `instrument:gain` properties.
 - **Deep Master Inspection**: Fallback logic to extract integrated sub-exposure counts from legacy PixInsight history comments.
-- **Coordinate Consolidation**: Automatic site grouping using 3-decimal GPS rounding (~110m precision) to resolve GPS drift issues.
 - **Golden Test Suite**: Expanded reference tests to include mosaics, CSV overrides, and multi-gain datasets.
 
 ### Changed
