@@ -5,7 +5,7 @@ v2.0.2 is the definitive "Master Release" of the 2.0 series. It represents a com
 
 ---
 
-## 🚀 Key Architectural Advancements (v2.0.0)
+## 🚀 Key Architectural Advancements
 
 ### 1. The Pipeline Pattern
 The utility has been rebuilt from the ground up using a modular Step-based architecture. This decoupling ensures that each transformation stage (Normalization, Deduplication, Calibration Matching, etc.) is independent, robustly testable, and highly maintainable.
@@ -18,7 +18,7 @@ Our "PixInsight Aware" parser distinguishes between actual linear gain and elect
 
 ---
 
-## 🛠️ Hardened Debugging & Transparency (v2.0.1)
+## 🛠️ Hardened Debugging & Transparency
 
 ### 4. Automatic Crash Diagnostics
 Troubleshooting is now proactive. If the pipeline encounters an error, it automatically generates a `CRASH_DIAGNOSTIC.csv` capturing the data's exact state at failure. An `emergency_raw_dump.csv` is also created if a crash occurs during initial disk scanning.
@@ -34,7 +34,7 @@ We have replaced simple coordinate rounding with **Distance-Based Clustering** (
 
 ---
 
-## 🛡️ Reliability & Flexibility (v2.0.2)
+## 🛡️ Reliability & Flexibility
 
 ### 7. Engine Integrity Verification
 To prevent "Frankenstein" installations, v2.0.2 introduces a mandatory **Version Handshake**. The utility verifies that every internal module is in perfect version parity at startup, ensuring you are always running a consistent and supported build.
