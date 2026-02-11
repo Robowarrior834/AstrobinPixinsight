@@ -21,7 +21,6 @@ Usage:
     - [Initialization](#initialization-no-arguments-are-passed)
     - [Single directory or symbolic link passed to script](#a-single-directory-path-or-symbolic-link-argument-is-passed-to-the-script)
     - [Multiple directory paths or symbolic links are passed to the script](#multiple-directory-paths-or-symbolic-links-are-passed-to-the-script)
-    - [Custom Configuration File](#custom-configuration-file)
     - [Debug output](#debug-output)
 - [Example calls and outputs](#example-calls-and-outputs)
     - [Single site, non-mosaic, no Masters. Data resides in structured single directory, symbolic links used for calibration data ](#example-1-single-site-non-mosaic-no-masters-data-resides-in-structured-single-directory-symbolic-links-used-for-calibration-data)
