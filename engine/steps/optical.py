@@ -1,4 +1,4 @@
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 """
 Optical Parameter Calculation Module - AstroBin Upload Utility v2.0.2
 

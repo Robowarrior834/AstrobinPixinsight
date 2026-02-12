@@ -1,54 +1,47 @@
-# Release Notes - AstroBin Upload Utility v2.0.2
+# Release Notes - AstroBin Upload Utility
 
-## Overview
-v2.0.2 is the definitive "Master Release" of the 2.0 series. It represents a complete architectural evolution of the AstroBin Upload Utility, transforming it from a procedural script into a high-performance, modular, and hardened ETL (Extract, Transform, Load) pipeline. This release combines the performance of v2.0.0, the diagnostic visibility of v2.0.1, and the system integrity safeguards of v2.0.2.
-
----
-
-## 🚀 Key Architectural Advancements
-
-### 1. The Pipeline Pattern
-The utility has been rebuilt from the ground up using a modular Step-based architecture. This decoupling ensures that each transformation stage (Normalization, Deduplication, Calibration Matching, etc.) is independent, robustly testable, and highly maintainable.
-
-### 2. The Hybrid Handshake
-Matching calibration frames to lights now utilizes a multi-tier logic. The system prioritizes the unique electronic signature (`EGAIN`) of your camera sensor for high-precision pairing, while maintaining a seamless fallback to linear integer `GAIN` for legacy compatibility.
-
-### 3. Smart XISF & Master Extraction
-Our "PixInsight Aware" parser distinguishes between actual linear gain and electronic signatures. It also performs deep inspection of master frames to accurately extract integrated sub-exposure counts from both modern `ProcessingHistory` and legacy `HISTORY` comments.
+## v2.0.3 (Current)
+### Optical Metric Type Safety
+v2.0.3 addresses a critical `TypeError` that occurred when processing XISF files in environments running Pandas 3.x. The issue was caused by certain metadata (HFR, FWHM, Image Scale) being extracted as strings but assigned as floats.
+- **Fix**: Added `InternalColumns.HFR`, `InternalColumns.MEAN_FWHM`, and `InternalColumns.IMSCALE` to the mandatory type-hardening list in `NormalizeHeadersStep`.
 
 ---
 
-## 🛠️ Hardened Debugging & Transparency
-
-### 4. Automatic Crash Diagnostics
-Troubleshooting is now proactive. If the pipeline encounters an error, it automatically generates a `CRASH_DIAGNOSTIC.csv` capturing the data's exact state at failure. An `emergency_raw_dump.csv` is also created if a crash occurs during initial disk scanning.
-
-### 5. High-Visibility Logging
-The logging system has been overhauled for 100% data traceability:
-- **Horizontal Header Echo**: Every file read has its full raw metadata printed as a dictionary in the log.
-- **Granular Milestones**: Detailed tracking of hardware overrides, master preference filtering, and specific calibration assignments.
-- **Advanced Tracebacks**: Every fatal error records a full Python traceback in `AstroBinUploader.log`, eliminating "silent stops."
-
-### 6. Smart Proximity Clustering
-We have replaced simple coordinate rounding with **Distance-Based Clustering** (~110m threshold). This resolves "Site Fragmentation" caused by GPS drift and uses **Centroid Averaging** to calculate the most precise geographical coordinates for your final reports.
+## v2.0.2
+### Engine Integrity Verification
+- **Handshake**: Implemented a mandatory version handshake across all internal modules to prevent 'Frankenstein' installations.
+- **Optimization**: Streamlined initialization by collapsing utility dependencies.
+- **Diagnostics**: Introduced `debug_step_00_RawHeaders.csv` for improved `--test` reliability.
 
 ---
 
-## 🛡️ Reliability & Flexibility
-
-### 7. Engine Integrity Verification
-To prevent "Frankenstein" installations, v2.0.2 introduces a mandatory **Version Handshake**. The utility verifies that every internal module is in perfect version parity at startup, ensuring you are always running a consistent and supported build.
-
-### 8. Refined Testing Methodology
-We have simplified the diagnostic workflow. Running with `--debug` now generates a **`debug_step_00_RawHeaders.csv`** file. This file captures the exact metadata read from disk and is the primary supported source for the **`--test`** flag, allowing for 100% accurate reproduction of any imaging session.
-
-### 9. Custom Configuration Profiles
-Specify alternative `.ini` files via the `--config` (or `-c`) flag. This allows for effortless switching between Mono, Color, or Remote observatory profiles without manually renaming files.
-
-### 10. Streamlined Distribution
-The architecture has been optimized by collapsing redundant utility files into the primary entry point, reducing overhead and making the tool easier to audit and deploy.
+## v2.0.1
+### Hardened Debugging System
+- **Traceability**: Overhauled logging to include Horizontal Header Echo and Sequential Debug CSVs.
+- **Emergency Dumps**: Automatic generation of `CRASH_DIAGNOSTIC.csv` and `emergency_raw_dump.csv` on fatal errors.
+- **Spatial Resolution**: Replaced coordinate rounding with Distance-Based Clustering (~110m threshold) and Centroid Averaging.
+- **Flexibility**: Added support for custom configuration profiles via `--config`.
 
 ---
 
-## Installation & Usage
-Please refer to the [README.md](README.md) for detailed installation and usage instructions. v2.0.2 is a drop-in replacement for all previous versions.
+## v2.0.0
+### The Pipeline Revolution
+- **Architecture**: Complete modular rewrite using the Pipeline Pattern.
+- **Hybrid Handshake**: New matching engine prioritizing `EGAIN` signatures with `GAIN` fallbacks.
+- **PixInsight Support**: Enhanced XISF parser with deep inspection of master frames and integrated sub-exposure counts.
+- **Performance**: Full transition to vectorized Pandas operations, resulting in a **~62% speed increase** over v1.4.x.
+
+---
+
+## v1.4.x
+### Performance & Hardening
+- **v1.4.7**: Introduced the `AstroBinProcessor` pipeline and centralized `constants.py`.
+- **v1.4.5**: Added dynamic hardware overrides, PixInsight processing history parsing, and live console progress feedback.
+
+---
+
+## v1.3.x
+### Foundation & Reliability
+- **v1.3.12**: Enhanced XISF master sub-exposure detection.
+- **v1.3.6**: Introduced the `--debug` flag and structured subdirectory output.
+- **v1.3.0**: Initial baseline release (Feb 2024).

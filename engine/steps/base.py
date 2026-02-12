@@ -1,4 +1,4 @@
-__version__ = '2.0.2'
+__version__ = '2.0.3'
 """
 Standard Metadata Normalization Module - AstroBin Upload Utility v2.0.2
 
@@ -173,7 +173,8 @@ class NormalizeHeadersStep:
                           InternalColumns.F_NUMBER, InternalColumns.PIXEL_SIZE, 
                           InternalColumns.SITE_LAT, InternalColumns.SITE_LONG,
                           InternalColumns.BINNING, InternalColumns.BORTLE, 
-                          InternalColumns.MEAN_SQM]:
+                          InternalColumns.MEAN_SQM, InternalColumns.HFR,
+                          InternalColumns.MEAN_FWHM, InternalColumns.IMSCALE]:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(default).astype(float)
                 elif col == InternalColumns.DURATION:
                     # Round duration to 2 decimal places for consistent grouping/matching

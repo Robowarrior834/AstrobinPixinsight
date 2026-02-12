@@ -38,7 +38,7 @@ from engine.steps.aggregate import AggregationStep
 from engine.exporter import Exporter
 from models import SessionState
 
-APP_VERSION = '2.0.2'
+APP_VERSION = '2.0.3'
 
 def verify_engine_integrity(logger: logging.Logger):
     """
