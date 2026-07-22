@@ -1,3 +1,37 @@
+# AstroBin Upload Utility
+
+> **Supports both the standalone Python utility and the PixInsight AstroBin CSV Generator.**
+
+This is a working merged README scaffold. The original Python documentation follows below and is ready to be expanded with the PixInsight sections.
+
+---
+
+## PixInsight Script
+
+The PixInsight AstroBin CSV Generator provides a native GUI for generating AstroBin acquisition CSV files directly from FITS and XISF light frames.
+
+### Features
+
+- Reads FITS and XISF headers
+- Extracts exposure, gain, filter, temperature, date, telescope, site and camera metadata
+- Groups frames by session, filter, gain, exposure and binning
+- Handles overnight imaging sessions
+- Skips master frames automatically
+- Generates AstroBin Bulk Import CSV files
+- Saves settings between sessions
+
+### Installation
+
+1. Extract `AstroBin.7z`.
+2. Copy the `astrobin` folder into PixInsight's `src/scripts` folder.
+3. Open **Scripts → Feature Scripts**.
+4. Click **Add** and select the folder.
+5. Run **Scripts → Utilities → AstroBin CSV Generator**.
+
+---
+
+# Original Python Documentation
+
 # AstroBin Upload Utility v2.0.3
 Scripts to process FITS/XISF headers and create Astrobin data acquisition file and summary text.
 
