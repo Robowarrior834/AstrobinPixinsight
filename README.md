@@ -52,6 +52,10 @@ To contribute to this project, follow these steps:
 
 Alternatively, see the GitHub documentation on [creating a pull request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request).
 
+## Development
+
+This project was developed with the assistance of opencode. Users who prefer alternative development tools are welcome to use or modify this project as they see fit.
+
 ## Contact
 
 If you want to contact me, you can reach me at sgreaves139@gmail.com.
