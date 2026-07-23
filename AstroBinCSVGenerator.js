@@ -2113,7 +2113,6 @@ var MainDialog = class extends Dialog {
 
       var addButton = new PushButton(this);
       addButton.text = "Add Files...";
-      addButton.icon = this.scaledResource(":/icons/add.png");
       addButton.onClick = function() { self.addFiles(); };
 
       var addDirButton = new PushButton(this);
@@ -2201,8 +2200,6 @@ var MainDialog = class extends Dialog {
 
       var generateButton = new PushButton(this);
       generateButton.text = "Generate CSV";
-      generateButton.setFixedWidth(120);
-      generateButton.font = new Font("sans-serif", 11);
       generateButton.onClick = function() { self.generateCSV(); };
 
       var closeButton = new PushButton(this);
