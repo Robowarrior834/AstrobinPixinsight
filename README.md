@@ -20,7 +20,25 @@ The PixInsight AstroBin CSV Generator provides a native GUI for generating Astro
 - Generates AstroBin Bulk Import CSV files
 - Saves settings between sessions
 
-### Installation
+### Installation (Recommended - Update Repository)
+
+The easiest way to install and keep the script updated is using PixInsight's built-in update repository system:
+
+1. In PixInsight, go to **Resources → Updates → Manage Repositories**
+2. Click **Add** and enter this URL:
+   ```
+   https://raw.githubusercontent.com/Robowarrior834/AstrobinPixinsight/main/updates/
+   ```
+3. Click **OK** to close the dialog
+4. Go to **Resources → Updates → Check for Updates**
+5. Select **AstroBin CSV Generator** and click **Apply**
+6. Restart PixInsight when prompted
+
+The script will appear under **Scripts → Utilities → AstroBin CSV Generator**.
+
+To update: Simply check for updates again — PixInsight will automatically download and install new versions.
+
+### Installation (Manual)
 
 1. Extract `AstroBin.7z`.
 2. Copy the `astrobin` folder into PixInsight's `src/scripts` folder.

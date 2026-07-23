@@ -167,6 +167,7 @@ cython_debug/
 # Configuration
 config.ini
 *.zip
+!updates/*.zip
 tests/
 golden_tests/
 GEMINI.md

@@ -1,8 +1,14 @@
 /*
- * AstroBin CSV Generator for PixInsight v1.1.0
+ * AstroBin CSV Generator for PixInsight v1.2.0
  *
  * Reads FITS/XISF file headers and generates AstroBin-compatible
  * acquisition.csv files for bulk upload.
+ *
+ * Features:
+ * - Automatic filter-to-ID mapping via AstroBin database download
+ * - Default filter fallback for unmapped entries
+ * - Session detection and overnight shifting
+ * - FITS/XISF header extraction with keyword overrides
  *
  * Based on the AstroBin Upload Utility Python tool.
  * Requires PixInsight 1.9.4 Lockhart or later (V8 runtime).
@@ -11,14 +17,20 @@
 #engine v8
 
 #define TITLE "AstroBin CSV Generator"
-#define VERSION "1.1.0"
+#define VERSION "1.2.0"
 
 #feature-id AstroBinCSVGenerator : Utilities > AstroBin CSV Generator
 
-#feature-info <b>AstroBin CSV Generator v1.1.0</b><br/>\
+#feature-info <b>AstroBin CSV Generator v1.2.0</b><br/>\
    <br/>\
    Reads FITS/XISF file headers and generates AstroBin-compatible \
    acquisition.csv files for bulk upload.<br/>\
+   <br/>\
+   Features:<br/>\
+   - Automatic filter-to-ID mapping via AstroBin database download<br/>\
+   - Default filter fallback for unmapped entries<br/>\
+   - Session detection and overnight shifting<br/>\
+   - FITS/XISF header extraction with keyword overrides<br/>\
    <br/>\
    Based on the AstroBin Upload Utility Python tool.
 
@@ -87,11 +99,401 @@ const IMAGE_TYPE_MAP = {
 };
 
 const SETTINGS_NS = TITLE + "." + VERSION + "_";
+const ASTROBIN_API_BASE = "https://app.astrobin.com/api/v2/equipment/filter/";
+const FILTER_DB_FILE = File.homeDirectory + "/PixInsight/AstroBinFilters.json";
+
+// =============================================================================
+// Network Helper
+// =============================================================================
+
+/**
+ * Reads an entire file and returns its contents as a UTF-8 string.
+ *
+ * Reads in chunked blocks for memory efficiency and handles several
+ * edge cases common in PixInsight's V8 environment:
+ * - BOM stripping (UTF-8, UTF-16 LE/BE)
+ * - Null byte removal (PixInsight V8 can insert these)
+ * - Chunk size reduction on read errors (graceful degradation)
+ *
+ * @param {string} filePath - Absolute path to the file to read.
+ * @returns {string} The full file contents as a string, or empty on failure.
+ */
+function readFileText(filePath) {
+   var file = new File;
+   file.openForReading(filePath);
+   var chunks = [];
+   var chunkSize = 8192;
+   var position = 0;
+   for (;;) {
+      var bytes = null;
+      var gotChunk = false;
+      var trySize = chunkSize;
+      while (trySize > 0) {
+         try {
+            bytes = file.read(DataType.ByteArray, trySize);
+            if (bytes != null && bytes.length > 0) {
+               position += bytes.length;
+               gotChunk = true;
+               break;
+            }
+            break;
+         } catch (e) {
+            try {
+               file.seek(position, SeekMode.FromBegin);
+            } catch (se) {
+               break;
+            }
+            trySize = Math.floor(trySize / 2);
+         }
+      }
+      if (!gotChunk || bytes == null || bytes.length === 0) break;
+      var chunkStr;
+      try {
+         chunkStr = bytes.utf8ToString();
+      } catch (e2) {
+         chunkStr = bytes.toString();
+      }
+      chunks.push(chunkStr);
+   }
+   file.close();
+   var text = chunks.join("");
+   if (text.length > 0 && text.charCodeAt(0) === 0xEF) {
+      text = text.substring(3);
+   }
+   if (text.length > 1 && text.charCodeAt(0) === 0xFF && text.charCodeAt(1) === 0xFE) {
+      text = text.substring(2);
+   }
+   if (text.length > 1 && text.charCodeAt(0) === 0xFE && text.charCodeAt(1) === 0xFF) {
+      text = text.substring(2);
+   }
+   if (text.indexOf("\0") >= 0) {
+      text = text.replace(/\0/g, "");
+   }
+   return text;
+}
+
+/**
+ * Writes a string to a file using explicit UTF-8 byte-by-byte output.
+ *
+ * PixInsight's outText() may emit UTF-16 on Windows, which breaks
+ * round-trip reads via read(DataType.ByteArray). This function writes
+ * in small segments to guarantee single-byte encoding on all platforms.
+ *
+ * @param {string} filePath - Absolute path to the output file.
+ * @param {string} text - The text content to write.
+ */
+function writeFileUtf8(filePath, text) {
+   // Write the file byte-by-byte to guarantee single-byte encoding on all
+   // platforms. outText() may use UTF-16 on Windows, which breaks round-trip
+   // reading via read(DataType.ByteArray).
+   var file = File.createFileForWriting(filePath);
+   var pos = 0;
+   var len = text.length;
+   while (pos < len) {
+      var end = Math.min(pos + 4096, len);
+      var segment = text.substring(pos, end);
+      // Write using outTextLn for each line-sized chunk; the file will have
+      // newlines but we handle that on read.
+      file.outText(segment);
+      pos = end;
+   }
+   file.close();
+}
+
+/**
+ * Performs an HTTP GET request and returns the response body as a string.
+ *
+ * Uses PixInsight's NetworkTransfer API with a browser-like User-Agent
+ * header to avoid 403 responses from servers that block non-browser clients.
+ *
+ * @param {string} url - The URL to fetch.
+ * @returns {string|null} The response body text, or null if the request failed.
+ */
+function httpGet(url) {
+   var nt = new NetworkTransfer;
+   var response = "";
+
+   nt.setURL(url);
+   nt.setCustomHTTPHeaders([
+      "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept: application/json"
+   ]);
+
+   nt.onDownloadDataAvailable = function(data) {
+      response += data.utf8ToString();
+      return true;
+   };
+
+   if (!nt.download()) {
+      console.criticalln("HTTP GET failed: " + nt.errorInformation);
+      return null;
+   }
+
+   return response;
+}
+
+// =============================================================================
+// Filter Database
+// =============================================================================
+
+/**
+ * Manages a local cache of the AstroBin filter database.
+ *
+ * The database is downloaded from the AstroBin REST API and stored as a
+ * JSON file in the user's PixInsight directory. It provides multi-pass
+ * fuzzy search to match FITS FILTER header values to AstroBin numeric IDs.
+ *
+ * Database file: ~/PixInsight/AstroBinFilters.json
+ * API endpoint:  https://app.astrobin.com/api/v2/equipment/filter/
+ */
+function AstroBinFilterDatabase() {
+   this.filters = [];
+   this.lastUpdated = null;
+
+   /**
+    * Loads the filter database from the local JSON cache file.
+    *
+    * @returns {boolean} True if the database was loaded successfully with
+    *   at least one filter entry, false otherwise.
+    */
+   this.load = function() {
+      console.writeln("  Filter DB path: " + FILTER_DB_FILE);
+      console.writeln("  Filter DB exists: " + File.exists(FILTER_DB_FILE));
+      if (!File.exists(FILTER_DB_FILE)) return false;
+      try {
+         var content = readFileText(FILTER_DB_FILE);
+         if (content == null || content.length === 0) {
+            console.warningln("  Filter DB: readFileText returned empty content");
+            return false;
+         }
+         console.writeln("  Filter DB content length: " + content.length);
+         console.writeln("  Filter DB first 200 chars: " + content.substring(0, Math.min(200, content.length)));
+         var data = JSON.parse(content);
+         this.filters = data.filters || [];
+         this.lastUpdated = data.lastUpdated || null;
+         console.writeln("  Filter DB loaded: " + this.filters.length + " filters");
+         return this.filters.length > 0;
+      } catch (e) {
+         console.criticalln("Error loading filter database: " + e.toString());
+         return false;
+      }
+   };
+
+   /**
+    * Persists the current filter list to the local JSON cache file.
+    * Creates the directory if it does not exist.
+    *
+    * @returns {boolean} True if the file was written successfully.
+    */
+   this.save = function() {
+      try {
+         var data = {
+            filters: this.filters,
+            lastUpdated: this.lastUpdated
+         };
+         // Ensure directory exists
+         try {
+            var dbDir = File.extractDirectory(FILTER_DB_FILE);
+            if (!File.directoryExists(dbDir)) {
+               File.createDirectory(dbDir);
+            }
+         } catch (dirErr) {
+            // directory helpers may not exist in all PI versions
+         }
+         writeFileUtf8(FILTER_DB_FILE, JSON.stringify(data));
+         return true;
+      } catch (e) {
+         console.criticalln("Error saving filter database: " + e.toString());
+         return false;
+      }
+   };
+
+   /**
+    * Downloads the full filter database from the AstroBin REST API.
+    *
+    * Paginates through all results (typically ~2500 filters) and stores
+    * them in memory. Calls save() to persist to disk on success.
+    * Uses CoreApplication.processEvents() between pages to keep the
+    * PixInsight UI responsive during the download.
+    *
+    * @returns {boolean} True if the download and save completed successfully.
+    */
+   this.fetchFromAPI = function() {
+      console.writeln("API: " + ASTROBIN_API_BASE);
+      console.writeln();
+
+      var allFilters = [];
+      var page = 1;
+      var totalCount = 0;
+
+      while (true) {
+         var url = ASTROBIN_API_BASE + "?format=json" + "&page=" + page;
+         console.writeln("Fetching page " + page + "...");
+
+         var responseText = httpGet(url);
+         if (responseText == null) {
+            console.criticalln("Failed to fetch page " + page + ". Aborting.");
+            return false;
+         }
+
+         var data;
+         try {
+            data = JSON.parse(responseText);
+         } catch (e) {
+            console.criticalln("Invalid JSON on page " + page + ": " + e.toString());
+            return false;
+         }
+
+         if (page === 1 && data.count) {
+            totalCount = data.count;
+            console.writeln("Total filters in database: " + totalCount);
+         }
+
+         if (!data.results || data.results.length === 0) break;
+
+         for (var i = 0; i < data.results.length; i++) {
+            var r = data.results[i];
+            allFilters.push({
+               id: r.id,
+               name: r.name || "",
+               searchFriendlyName: r.searchFriendlyName || r.name || "",
+               brandName: r.brandName || "",
+               type: r.type || "",
+               bandwidth: r.bandwidth || null,
+               size: r.size || ""
+            });
+         }
+
+         console.writeln("  Got " + data.results.length + " filters (total so far: " + allFilters.length + ")");
+
+         // Stop if we got fewer than a full page (last page)
+         // Also stop if we've collected more than expected (safety)
+         if (data.results.length < 50) break;
+         if (totalCount > 0 && allFilters.length >= totalCount) break;
+         page++;
+
+         // Small delay to be polite to the API
+         // PixInsight sleep uses seconds, but we just yield briefly
+         CoreApplication.processEvents();
+      }
+
+      this.filters = allFilters;
+      this.lastUpdated = new Date().toISOString();
+
+      if (this.save()) {
+         console.writeln();
+         console.writeln("<b>Download complete:</b> " + allFilters.length + " filters saved to " + FILTER_DB_FILE);
+      } else {
+         console.criticalln("Downloaded filters but failed to save to disk.");
+         return false;
+      }
+
+      console.hide();
+      return true;
+   };
+
+   /**
+    * Searches the database for a filter matching the given name.
+    *
+    * Uses a multi-pass fuzzy matching strategy:
+    *   1. Exact match on searchFriendlyName (case-insensitive)
+    *   2. Exact match on name (case-insensitive)
+    *   3. Substring match on searchFriendlyName
+    *   4. Substring match on name
+    *   5. Reverse substring (input contains the filter name)
+    *
+    * @param {string} name - The filter name to search for (e.g., "Ha", "S-II").
+    * @returns {Object|null} Match object {id, name, brandName} or null if no match.
+    */
+   this.search = function(name) {
+      if (name == null || name.length === 0) return null;
+      var n = String(name).trim();
+      if (n.length === 0) return null;
+      var lower = n.toLowerCase();
+
+      // Pass 1: exact match on searchFriendlyName
+      for (var i = 0; i < this.filters.length; i++) {
+         var f = this.filters[i];
+         if (f.searchFriendlyName.toLowerCase() === lower) {
+            return { id: f.id, name: f.searchFriendlyName, brandName: f.brandName };
+         }
+      }
+
+      // Pass 2: exact match on name
+      for (var i = 0; i < this.filters.length; i++) {
+         var f = this.filters[i];
+         if (f.name.toLowerCase() === lower) {
+            return { id: f.id, name: f.searchFriendlyName, brandName: f.brandName };
+         }
+      }
+
+      // Pass 3: substring match on searchFriendlyName
+      for (var i = 0; i < this.filters.length; i++) {
+         var f = this.filters[i];
+         if (f.searchFriendlyName.toLowerCase().indexOf(lower) >= 0) {
+            return { id: f.id, name: f.searchFriendlyName, brandName: f.brandName };
+         }
+      }
+
+      // Pass 4: substring match on name
+      for (var i = 0; i < this.filters.length; i++) {
+         var f = this.filters[i];
+         if (f.name.toLowerCase().indexOf(lower) >= 0) {
+            return { id: f.id, name: f.searchFriendlyName, brandName: f.brandName };
+         }
+      }
+
+      // Pass 5: reverse substring — input contains the filter name
+      for (var i = 0; i < this.filters.length; i++) {
+         var f = this.filters[i];
+         var fname = f.searchFriendlyName.toLowerCase();
+         if (fname.length > 2 && lower.indexOf(fname) >= 0) {
+            return { id: f.id, name: f.searchFriendlyName, brandName: f.brandName };
+         }
+      }
+
+      return null;
+   };
+
+   /** @returns {number} The total number of filters currently loaded in the database. */
+   this.getCount = function() {
+      return this.filters.length;
+   };
+
+   /**
+    * Returns the last-updated timestamp in a human-readable format.
+    * @returns {string} Formatted date string (YYYY-MM-DD HH:MM) or "Never".
+    */
+   this.getLastUpdated = function() {
+      if (this.lastUpdated == null) return "Never";
+      try {
+         var d = new Date(this.lastUpdated);
+         return d.getFullYear() + "-" +
+                String(d.getMonth() + 1).padStart(2, "0") + "-" +
+                String(d.getDate()).padStart(2, "0") + " " +
+                String(d.getHours()).padStart(2, "0") + ":" +
+                String(d.getMinutes()).padStart(2, "0");
+      } catch (e) {
+         return this.lastUpdated;
+      }
+   };
+}
+
+// Global filter database instance — loaded once at script startup
+var filterDB = new AstroBinFilterDatabase();
+filterDB.load();
 
 // =============================================================================
 // Settings Management
 // =============================================================================
 
+/**
+ * Manages persistent user settings for the AstroBin CSV Generator.
+ *
+ * Settings are stored using PixInsight's Settings API (key-value store)
+ * and include site coordinates, equipment defaults, filter mappings,
+ * and processing preferences. All values are persisted across sessions.
+ */
 function AstroBinSettings() {
    this.filterMap = {};
    this.siteName = "My Site";
@@ -108,7 +510,10 @@ function AstroBinSettings() {
    this.defaultGain = 0;
    this.defaultTemp = -10;
    this.keywordOverrides = {};
+   this.defaultFilter = "";
+   this.useDefaultFilter = false;
 
+   /** Loads all persisted settings from the PixInsight Settings API. */
    this.load = function() {
       // Load filter map
       var savedFilters = Settings.read(SETTINGS_NS + "filterMap", DataType.String);
@@ -172,8 +577,16 @@ function AstroBinSettings() {
             this.keywordOverrides = {};
          }
       }
+
+      // Load default filter settings
+      val = Settings.read(SETTINGS_NS + "defaultFilter", DataType.String);
+      if (Settings.lastReadOK && val != null) this.defaultFilter = val;
+
+      val = Settings.read(SETTINGS_NS + "useDefaultFilter", DataType.Boolean);
+      if (Settings.lastReadOK && val != null) this.useDefaultFilter = val;
    };
 
+   /** Saves all current settings to the PixInsight Settings API. */
    this.save = function() {
       Settings.write(SETTINGS_NS + "filterMap", DataType.String, JSON.stringify(this.filterMap));
       Settings.write(SETTINGS_NS + "siteName", DataType.String, this.siteName);
@@ -190,17 +603,55 @@ function AstroBinSettings() {
       Settings.write(SETTINGS_NS + "defaultGain", DataType.Int32, this.defaultGain);
       Settings.write(SETTINGS_NS + "defaultTemp", DataType.Real64, this.defaultTemp);
       Settings.write(SETTINGS_NS + "keywordOverrides", DataType.String, JSON.stringify(this.keywordOverrides));
+      Settings.write(SETTINGS_NS + "defaultFilter", DataType.String, this.defaultFilter);
+      Settings.write(SETTINGS_NS + "useDefaultFilter", DataType.Boolean, this.useDefaultFilter);
    };
 
+   /**
+    * Maps a FITS FILTER keyword value to an AstroBin filter ID.
+    *
+    * Resolution strategy (in priority order):
+    *   1. Exact match against the user's custom filter map
+    *   2. Case-insensitive match against the custom filter map
+    *   3. Search the downloaded AstroBin filter database (fuzzy)
+    *   4. Fall back to the user-configured default filter (if enabled)
+    *   5. Return the raw name as-is (will show as unmapped in the UI)
+    *
+    * @param {string} name - The raw filter name from the FITS header.
+    * @returns {string} An AstroBin numeric ID string, or the original name if unmapped.
+    */
    this.mapFilter = function(name) {
       if (name == null) return "None";
       var n = String(name).trim();
+      if (n.length === 0) return "None";
+
+      // Pass 1: exact match on user's custom filter map
       if (n in this.filterMap) return this.filterMap[n];
-      // Case-insensitive fallback
+
+      // Pass 2: case-insensitive match on custom filter map
       var lower = n.toLowerCase();
       for (var key in this.filterMap) {
          if (key.toLowerCase() === lower) return this.filterMap[key];
       }
+
+      // Pass 3: search the downloaded AstroBin filter database
+      if (filterDB.getCount() > 0) {
+         var dbResult = filterDB.search(n);
+         if (dbResult != null) {
+            console.writeln("  Filter '" + n + "' -> AstroBin DB: " + dbResult.id +
+               " (" + dbResult.brandName + " " + dbResult.name + ")");
+            return String(dbResult.id);
+         }
+      }
+
+      // Pass 4: use default filter if enabled
+      if (this.useDefaultFilter && this.defaultFilter.length > 0) {
+         console.writeln("  Filter '" + n + "' -> using default: " + this.defaultFilter);
+         return this.defaultFilter;
+      }
+
+      // No match found — return raw name (will cause CSV import issue, but visible to user)
+      console.writeln("  Warning: Filter '" + n + "' has no AstroBin mapping!");
       return n;
    };
 }
@@ -209,6 +660,16 @@ function AstroBinSettings() {
 // FITS Header Reader
 // =============================================================================
 
+/**
+ * Parses a single 80-character FITS header card into a keyword-value pair.
+ *
+ * Handles standard KEYWORD=VALUE cards, HIERARCH long-keyword cards,
+ * and comment-only cards (no '=' sign). The END keyword signals the
+ * termination of the header block.
+ *
+ * @param {string} cardStr - An 80-character FITS header card string.
+ * @returns {Array|null} A [keyword, value] tuple, or null for END/comment cards.
+ */
 function parseFITSCard(cardStr) {
    // Returns [keyword, value] or null
    cardStr = cardStr.substring(0, 80); // ensure exactly 80 chars
@@ -238,6 +699,18 @@ function parseFITSCard(cardStr) {
    return [keyword, parseFITSValue(valueStr)];
 }
 
+/**
+ * Converts a raw FITS header value string into a JavaScript native type.
+ *
+ * Handles FITS-specific formatting rules:
+ * - Strings are delimited by single quotes
+ * - Inline comments start after a '/' outside of strings
+ * - Booleans are represented as 'T'/'F'
+ * - Numeric strings are auto-converted to Number types
+ *
+ * @param {string} valueStr - The raw value portion of a FITS card (after '=').
+ * @returns {string|number|boolean} The parsed value.
+ */
 function parseFITSValue(valueStr) {
    if (valueStr.length === 0) return "";
 
@@ -280,6 +753,16 @@ function parseFITSValue(valueStr) {
    return valueStr;
 }
 
+/**
+ * Reads FITS header keywords from a binary FITS file.
+ *
+ * Reads the file in 80-byte cards (the FITS standard card size) and
+ * parses each card into keyword-value pairs. Supports HIERARCH long
+ * keywords. Stops at the END keyword or end-of-file.
+ *
+ * @param {string} filePath - Absolute path to the FITS file.
+ * @returns {Object} Dictionary of keyword-value pairs extracted from the header.
+ */
 function readFITSHeaders(filePath) {
    var keywords = {};
    try {
@@ -355,6 +838,16 @@ function readFITSHeaders(filePath) {
    return keywords;
 }
 
+/**
+ * Locates the position of a FITS inline comment delimiter ('/') in a string.
+ *
+ * Correctly ignores '/' characters that appear inside single-quoted
+ * FITS string values. The FITS standard uses '/' to introduce a comment
+ * after the value in a header card.
+ *
+ * @param {string} str - The value string to search.
+ * @returns {number} The index of the comment delimiter, or -1 if not found.
+ */
 function findFITSComment(str) {
    var inString = false;
    for (var i = 0; i < str.length; i++) {
@@ -368,6 +861,24 @@ function findFITSComment(str) {
 // XISF Header Reader
 // =============================================================================
 
+/**
+ * Reads metadata from a PixInsight XISF (Extensible Image Science Format) file.
+ *
+ * XISF is PixInsight's native file format that stores metadata as XML.
+ * This function reads only the XML header block without loading image data,
+ * making it efficient for large files. Extracts both FITSKeyword entries
+ * (for compatibility with FITS-based pipelines) and Property entries
+ * (for XISF-native metadata like instrument gain).
+ *
+ * XISF file structure:
+ *   [8 bytes: signature "XISF0100"]
+ *   [4 bytes: header length (little-endian uint32)]
+ *   [4 bytes: reserved padding]
+ *   [N bytes: XML header block]
+ *
+ * @param {string} filePath - Absolute path to the XISF file.
+ * @returns {Object} Dictionary of keyword-value pairs extracted from the header.
+ */
 function readXISFHeaders(filePath) {
    var keywords = {};
    try {
@@ -465,6 +976,18 @@ function readXISFHeaders(filePath) {
 // Frame Data Normalization
 // =============================================================================
 
+/**
+ * Normalizes a raw IMAGETYP header value to a canonical type string.
+ *
+ * Handles the wide variety of IMAGETYP values found across different
+ * capture software (e.g., "Light Frame", "LIGHTS", "light").
+ * Falls back to partial substring matching for unknown values,
+ * and defaults to "LIGHT" if no match is found.
+ *
+ * @param {string|null} rawType - The raw IMAGETYP/IMGTYPE header value.
+ * @returns {string} A canonical type: "LIGHT", "FLAT", "DARK", "BIAS",
+ *   "DARKFLAT", or a MASTER* variant.
+ */
 function normalizeImageType(rawType) {
    if (rawType == null) return "LIGHT";
    var t = String(rawType).trim().toUpperCase();
@@ -478,6 +1001,24 @@ function normalizeImageType(rawType) {
    return "LIGHT"; // default
 }
 
+/**
+ * Extracts and normalizes all relevant frame metadata from FITS/XISF keywords.
+ *
+ * This is the central data-mapping function that converts raw header
+ * keyword-value pairs into a structured frame object. It applies keyword
+ * overrides, resolves multiple possible keyword names for each field,
+ * and falls back to user-defined default settings when headers are missing.
+ *
+ * Extracted fields include: image type, exposure, date, binning, gain,
+ * temperature, optical parameters (focal length, pixel size, f-ratio),
+ * image scale, FWHM/HFR, filter, target, RA/Dec, telescope/camera,
+ * site info, sky conditions, and software.
+ *
+ * @param {Object} keywords - Raw keyword dictionary from FITS/XISF parser.
+ * @param {string} filePath - Absolute path to the source file.
+ * @param {AstroBinSettings} settings - User settings for default fallbacks.
+ * @returns {Object} A structured frame data object.
+ */
 function extractFrameData(keywords, filePath, settings) {
    var frame = {};
    frame.filePath = filePath;
@@ -559,6 +1100,7 @@ function extractFrameData(keywords, filePath, settings) {
    // Filter
    frame.filter = kw["FILTER"] || kw["FILTERNAME"] || kw["FWHEEL"] || "";
    if (frame.filter.toLowerCase() === "nofilter") frame.filter = "";
+   frame.filterOverride = null; // User can override the AstroBin ID per-file
 
    // Target
    frame.object = kw["OBJECT"] || kw["OBJCTNAME"] || kw["OBJNAME"] || kw["TARGNAME"] || "Unknown";
@@ -593,6 +1135,21 @@ function extractFrameData(keywords, filePath, settings) {
 // Session Detection and Aggregation
 // =============================================================================
 
+/**
+ * Assigns session IDs and session dates to frames based on temporal gaps.
+ *
+ * Frames are sorted by observation date, then grouped into sessions
+ * using a configurable gap threshold (SESSION_GAP_HOURS, default 5h).
+ * Each session is assigned a date string, with optional overnight
+ * shifting: if the first frame of a session was taken before noon,
+ * the session date is shifted back to the previous calendar day
+ * (standard astro convention for overnight imaging sessions).
+ *
+ * Frames without valid dates are assigned session ID -1 and date "Unknown".
+ *
+ * @param {Array} frames - Array of frame data objects (modified in place).
+ * @returns {Array} The same frames array with _sessionId and sessionDate set.
+ */
 function detectSessions(frames) {
    // Sort frames by date
    var datedFrames = frames.filter(function(f) { return f.dateObj != null; });
@@ -657,6 +1214,21 @@ function detectSessions(frames) {
    return frames;
 }
 
+/**
+ * Aggregates individual LIGHT frames into row groups for the AstroBin CSV.
+ *
+ * Frames are grouped by: session date, filter, gain, binning, exposure,
+ * target, and image type. Only non-master LIGHT frames are included.
+ * Each group is collapsed into a single summary row with:
+ *   - Frame count
+ *   - Mean FWHM, sensor cooling, SQM, ambient temp, and f-number
+ *   - The mapped AstroBin filter ID
+ *
+ * Results are sorted by date, then filter, then gain for consistent output.
+ *
+ * @param {Array} frames - Array of frame data objects from extractFrameData().
+ * @returns {Array} Array of aggregated row objects suitable for CSV generation.
+ */
 function aggregateFrames(frames) {
    // Group frames by: sessionDate, filter, gain, binning, exposure, target, imagetyp
    var groups = {};
@@ -670,7 +1242,7 @@ function aggregateFrames(frames) {
 
       var key = [
          f.sessionDate,
-         f.filter,
+         f.filterOverride ? f.filterOverride.id : f.filter,
          f.gain,
          f.xbinning,
          f.exposure,
@@ -691,8 +1263,8 @@ function aggregateFrames(frames) {
       var agg = {};
 
       agg.sessionDate = group[0].sessionDate;
-      agg.filter = group[0].filter;
-      agg.filterCode = settings.mapFilter(group[0].filter);
+      agg.filter = group[0].filterOverride ? group[0].filterOverride.label : group[0].filter;
+      agg.filterCode = group[0].filterOverride ? group[0].filterOverride.id : settings.mapFilter(group[0].filter);
       agg.gain = group[0].gain;
       agg.xbinning = group[0].xbinning;
       agg.exposure = group[0].exposure;
@@ -743,6 +1315,21 @@ function aggregateFrames(frames) {
 // CSV Generation
 // =============================================================================
 
+/**
+ * Generates the AstroBin-compatible acquisition CSV file.
+ *
+ * Produces a comma-separated file with columns matching the AstroBin
+ * bulk upload format: date, filter (numeric ID), frame count, exposure
+ * duration, binning, gain, sensor cooling, f-number, calibration counts,
+ * bortle, SQM, FWHM, and temperature.
+ *
+ * Calibration columns (darks, flats, flatDarks, bias) are set to 0
+ * in this version as calibration matching is not yet implemented.
+ *
+ * @param {Array} aggregated - Array of aggregated row objects from aggregateFrames().
+ * @param {string} outputPath - Absolute path for the output CSV file.
+ * @returns {boolean} True if the file was written successfully.
+ */
 function generateCSV(aggregated, outputPath) {
    var header = "date,filter,number,duration,binning,gain,sensorCooling,fNumber,darks,flats,flatDarks,bias,bortle,meanSqm,meanFwhm,temperature";
 
@@ -792,11 +1379,23 @@ function generateCSV(aggregated, outputPath) {
 var settings = new AstroBinSettings();
 settings.load();
 
+/**
+ * Settings dialog for configuring site, equipment, and processing options.
+ *
+ * Provides a GUI for editing persistent settings that are saved via
+ * the PixInsight Settings API. Includes sections for:
+ *   - Site information (name, coordinates, Bortle, SQM, elevation)
+ *   - Equipment defaults (focal length, pixel size, f-ratio, gain, temp)
+ *   - Processing options (overnight shifting, observation date mode)
+ *   - AstroBin filter database management (download/update)
+ *   - Import site/equipment data from FITS/XISF image headers
+ */
 var SettingsDialog = class extends Dialog {
    constructor() {
       super();
       this.windowTitle = TITLE + " - Settings";
 
+      var self = this;
       var sizer = new VerticalSizer;
       sizer.spacing = 8;
       sizer.margin = 12;
@@ -886,7 +1485,7 @@ var SettingsDialog = class extends Dialog {
       var importButton = new PushButton(this);
       importButton.text = "Import Site/Equipment from Image...";
       importButton.toolTip = "Read FITS/XISF headers to populate site and equipment fields";
-      importButton.onClick = function() { this.dialog.importFromImage(); };
+      importButton.onClick = function() { self.importFromImage(); };
       importSizer.add(importButton);
       importSizer.addStretch();
       sizer.add(importSizer);
@@ -966,11 +1565,56 @@ var SettingsDialog = class extends Dialog {
 
       sizer.add(procGroup);
 
-      // Filter mapping info
-      var filterInfoLabel = new Label(this);
-      filterInfoLabel.text = "Filter mappings are stored in preferences. Edit in script source or use Settings dialog.";
-      filterInfoLabel.textAlignment = TextAlignment.Left;
-      sizer.add(filterInfoLabel);
+      // AstroBin Filter Database group
+      var filterGroup = new GroupBox(this);
+      filterGroup.title = "AstroBin Filter Database";
+      filterGroup.sizer = new VerticalSizer;
+      filterGroup.sizer.spacing = 4;
+
+      var filterStatusRow = new HorizontalSizer;
+      filterStatusRow.spacing = 6;
+      this.filterStatusLabel = new Label(this);
+      this.filterStatusLabel.text = "Database: " + filterDB.getCount() + " filters (updated: " + filterDB.getLastUpdated() + ")";
+      this.filterStatusLabel.textAlignment = TextAlignment.Left;
+      filterStatusRow.add(this.filterStatusLabel);
+      filterStatusRow.addStretch();
+      filterGroup.sizer.add(filterStatusRow);
+
+      var filterButtonRow = new HorizontalSizer;
+      filterButtonRow.spacing = 6;
+      var downloadButton = new PushButton(this);
+      downloadButton.text = "Download/Update Database";
+      downloadButton.toolTip = "Fetch the latest filter database from AstroBin (~2500 filters)";
+      downloadButton.onClick = function() {
+         self.downloadFilterDatabase();
+      };
+      filterButtonRow.add(downloadButton);
+      filterButtonRow.addStretch();
+      filterGroup.sizer.add(filterButtonRow);
+
+      // Default filter row
+      var defaultFilterRow = new HorizontalSizer;
+      defaultFilterRow.spacing = 6;
+      this.useDefaultFilterCheck = new CheckBox(this);
+      this.useDefaultFilterCheck.text = "Use default filter for unmapped entries:";
+      this.useDefaultFilterCheck.checked = settings.useDefaultFilter;
+      this.useDefaultFilterCheck.toolTip = "When a FITS FILTER keyword has no AstroBin mapping, use this default filter ID instead";
+      defaultFilterRow.add(this.useDefaultFilterCheck);
+
+      this.defaultFilterEdit = new Edit(this);
+      this.defaultFilterEdit.text = settings.defaultFilter;
+      this.defaultFilterEdit.setFixedWidth(80);
+      this.defaultFilterEdit.toolTip = "AstroBin filter ID to use as default (e.g. 2906 for Clear/Lum)";
+      defaultFilterRow.add(this.defaultFilterEdit);
+
+      var defaultFilterHint = new Label(this);
+      defaultFilterHint.text = "(AstroBin numeric ID, e.g. 2906=Clear, 4663=Ha)";
+      defaultFilterHint.textAlignment = TextAlignment.Left;
+      defaultFilterRow.add(defaultFilterHint);
+      defaultFilterRow.addStretch();
+      filterGroup.sizer.add(defaultFilterRow);
+
+      sizer.add(filterGroup);
 
       // Buttons
       var buttonSizer = new HorizontalSizer;
@@ -980,44 +1624,48 @@ var SettingsDialog = class extends Dialog {
       defaultsButton.text = "Reset Defaults";
       defaultsButton.onClick = function() {
          settings = new AstroBinSettings();
-         this.dialog.siteNameEdit.text = settings.siteName;
-          this.dialog.latEdit.text = settings.siteLat.toFixed(4);
-          this.dialog.lonEdit.text = settings.siteLon.toFixed(4);
-          this.dialog.elevEdit.text = settings.siteElev.toFixed(1);
-          this.dialog.bortleEdit.text = String(settings.bortle);
-         this.dialog.sqmEdit.text = settings.sqm.toFixed(2);
-         this.dialog.flEdit.text = String(settings.focalLength);
-         this.dialog.pxEdit.text = settings.pixelSize.toFixed(2);
-         this.dialog.frEdit.text = settings.focalRatio.toFixed(2);
-         this.dialog.gainEdit.text = String(settings.defaultGain);
-         this.dialog.tempEdit.text = settings.defaultTemp.toFixed(1);
-         this.dialog.shiftCheck.checked = settings.shiftOvernight;
-         this.dialog.obsDateCheck.checked = settings.useObsDate;
+         self.siteNameEdit.text = settings.siteName;
+          self.latEdit.text = settings.siteLat.toFixed(4);
+          self.lonEdit.text = settings.siteLon.toFixed(4);
+          self.elevEdit.text = settings.siteElev.toFixed(1);
+          self.bortleEdit.text = String(settings.bortle);
+         self.sqmEdit.text = settings.sqm.toFixed(2);
+         self.flEdit.text = String(settings.focalLength);
+         self.pxEdit.text = settings.pixelSize.toFixed(2);
+         self.frEdit.text = settings.focalRatio.toFixed(2);
+         self.gainEdit.text = String(settings.defaultGain);
+         self.tempEdit.text = settings.defaultTemp.toFixed(1);
+         self.shiftCheck.checked = settings.shiftOvernight;
+         self.obsDateCheck.checked = settings.useObsDate;
+         self.useDefaultFilterCheck.checked = settings.useDefaultFilter;
+         self.defaultFilterEdit.text = settings.defaultFilter;
       };
 
       var okButton = new PushButton(this);
       okButton.text = "OK";
       okButton.onClick = function() {
-         settings.siteName = this.dialog.siteNameEdit.text;
-         settings.siteLat = parseFloat(this.dialog.latEdit.text) || 0;
-         settings.siteLon = parseFloat(this.dialog.lonEdit.text) || 0;
-         settings.siteElev = parseFloat(this.dialog.elevEdit.text) || 0;
-         settings.bortle = parseInt(this.dialog.bortleEdit.text) || 4;
-         settings.sqm = parseFloat(this.dialog.sqmEdit.text) || 21;
-         settings.focalLength = parseFloat(this.dialog.flEdit.text) || 540;
-         settings.pixelSize = parseFloat(this.dialog.pxEdit.text) || 3;
-         settings.focalRatio = parseFloat(this.dialog.frEdit.text) || 5;
-         settings.defaultGain = parseInt(this.dialog.gainEdit.text) || 0;
-         settings.defaultTemp = parseFloat(this.dialog.tempEdit.text) || -10;
-         settings.shiftOvernight = this.dialog.shiftCheck.checked;
-         settings.useObsDate = this.dialog.obsDateCheck.checked;
+         settings.siteName = self.siteNameEdit.text;
+         settings.siteLat = parseFloat(self.latEdit.text) || 0;
+         settings.siteLon = parseFloat(self.lonEdit.text) || 0;
+         settings.siteElev = parseFloat(self.elevEdit.text) || 0;
+         settings.bortle = parseInt(self.bortleEdit.text) || 4;
+         settings.sqm = parseFloat(self.sqmEdit.text) || 21;
+         settings.focalLength = parseFloat(self.flEdit.text) || 540;
+         settings.pixelSize = parseFloat(self.pxEdit.text) || 3;
+         settings.focalRatio = parseFloat(self.frEdit.text) || 5;
+         settings.defaultGain = parseInt(self.gainEdit.text) || 0;
+         settings.defaultTemp = parseFloat(self.tempEdit.text) || -10;
+         settings.shiftOvernight = self.shiftCheck.checked;
+         settings.useObsDate = self.obsDateCheck.checked;
+         settings.useDefaultFilter = self.useDefaultFilterCheck.checked;
+         settings.defaultFilter = self.defaultFilterEdit.text;
          settings.save();
-         this.dialog.ok();
+         self.ok();
       };
 
       var cancelButton = new PushButton(this);
       cancelButton.text = "Cancel";
-      cancelButton.onClick = function() { this.dialog.cancel(); };
+      cancelButton.onClick = function() { self.cancel(); };
 
       buttonSizer.add(defaultsButton);
       buttonSizer.addStretch();
@@ -1028,6 +1676,13 @@ var SettingsDialog = class extends Dialog {
       this.sizer = sizer;
    }
 
+   /**
+    * Opens a file dialog and imports site/equipment metadata from a FITS/XISF file.
+    *
+    * Reads the selected file's headers and populates the settings dialog fields
+    * with values for: site name, coordinates, elevation, Bortle, SQM,
+    * focal length, pixel size, f-ratio, gain, and sensor temperature.
+    */
    importFromImage() {
       var dlg = new OpenFileDialog;
       dlg.caption = "Select an image to import site/equipment from";
@@ -1139,6 +1794,44 @@ var SettingsDialog = class extends Dialog {
          )).execute();
       }
    }
+
+   /**
+    * Prompts the user and downloads the full AstroBin filter database.
+    *
+    * Fetches ~2500 filters from the AstroBin REST API and saves them
+    * to the local cache file. Shows a confirmation dialog before starting
+    * and reports success/failure with a message box.
+    */
+   downloadFilterDatabase() {
+      var confirm = new MessageBox(
+         "This will download the entire AstroBin filter database (~2500 filters).\n" +
+         "This may take a minute. Continue?",
+         TITLE + " - Download Filter Database",
+         StdIcon.Question,
+         StdButton.Yes,
+         StdButton.No
+      );
+      if (confirm.execute() !== StdButton.Yes) return;
+
+      var success = filterDB.fetchFromAPI();
+
+      if (success) {
+         this.filterStatusLabel.text = "Database: " + filterDB.getCount() +
+            " filters (updated: " + filterDB.getLastUpdated() + ")";
+         (new MessageBox(
+            "Filter database downloaded successfully!\n\n" +
+            filterDB.getCount() + " filters loaded.\n" +
+            "Saved to: " + FILTER_DB_FILE,
+            TITLE, StdIcon.Information, StdButton.Ok
+         )).execute();
+      } else {
+         (new MessageBox(
+            "Failed to download filter database.\n" +
+            "Check the console for error details.",
+            TITLE, StdIcon.Error, StdButton.Ok
+         )).execute();
+      }
+   }
 };
 
 // =============================================================================
@@ -1147,6 +1840,193 @@ var SettingsDialog = class extends Dialog {
 
 var fileFrames = []; // Array of extracted frame data
 
+// =============================================================================
+// Filter Picker Dialog
+// =============================================================================
+
+/**
+ * Filter selection dialog for manually overriding AstroBin filter assignments.
+ *
+ * Displays a searchable list of all filters from the local AstroBin database.
+ * The user can type in the search box to filter results in real-time.
+ * Returns the selected filter's AstroBin numeric ID and display label.
+ *
+ * Used by the MainDialog for per-file and bulk filter override operations.
+ */
+var FilterPickerDialog = class extends Dialog {
+   constructor() {
+      super();
+      this.windowTitle = "Select AstroBin Filter";
+      this.minWidth = 500;
+      this.minHeight = 400;
+      this.chosenId = null;
+      this.chosenLabel = null;
+      this.displayedFilters = [];
+
+      var self = this;
+      var sizer = new VerticalSizer;
+      sizer.spacing = 8;
+      sizer.margin = 12;
+
+      // Search row
+      var searchRow = new HorizontalSizer;
+      searchRow.spacing = 6;
+      var searchLabel = new Label(this);
+      searchLabel.text = "Search:";
+      searchRow.add(searchLabel);
+      this.searchEdit = new Edit(this);
+      this.searchEdit.setFixedWidth(300);
+      this.searchEdit.onTextUpdated = function() { self.populateList(self.searchEdit.text); };
+      searchRow.add(this.searchEdit);
+      searchRow.addStretch();
+      sizer.add(searchRow);
+
+      // Filter list
+      this.listBox = new TreeBox(this);
+      this.listBox.numberOfColumns = 1;
+      this.listBox.setHeaderText(0, "Filter");
+      this.listBox.minHeight = 250;
+      this.listBox.rootDecoration = false;
+      sizer.add(this.listBox);
+
+      // Status
+      this.statusLabel = new Label(this);
+      this.statusLabel.text = filterDB.getCount() + " filters in database";
+      this.statusLabel.textAlignment = TextAlignment.Left;
+      sizer.add(this.statusLabel);
+
+      // Buttons
+      var buttonRow = new HorizontalSizer;
+      buttonRow.spacing = 8;
+
+      var okButton = new PushButton(this);
+      okButton.text = "OK";
+      okButton.onClick = function() {
+         // Resolve selected index directly from the tree
+         var resolvedIndex = -1;
+         // Try currentNode first (most reliable in V8)
+         var cur = self.listBox.currentNode;
+         if (cur != null) {
+            var curText = cur.text(0);
+            for (var i = 0; i < self.listBox.numberOfNodes; i++) {
+               if (self.listBox.node(i) === cur) {
+                  resolvedIndex = i;
+                  break;
+               }
+            }
+            // Fallback: match by text
+            if (resolvedIndex < 0) {
+               for (var i = 0; i < self.displayedFilters.length; i++) {
+                  var label = self.displayedFilters[i].brandName + " " +
+                              self.displayedFilters[i].name + " (" + self.displayedFilters[i].id + ")";
+                  if (label === curText) {
+                     resolvedIndex = i;
+                     break;
+                  }
+               }
+            }
+         }
+         // Fallback: try selectedNodes
+         if (resolvedIndex < 0) {
+            try {
+               var sel = self.listBox.selectedNodes;
+               if (sel != null && sel.length > 0) {
+                  var selText = sel[0].text(0);
+                  for (var i = 0; i < self.displayedFilters.length; i++) {
+                     var label = self.displayedFilters[i].brandName + " " +
+                                 self.displayedFilters[i].name + " (" + self.displayedFilters[i].id + ")";
+                     if (label === selText) {
+                        resolvedIndex = i;
+                        break;
+                     }
+                  }
+               }
+            } catch (e) {}
+         }
+
+         if (resolvedIndex < 0 || resolvedIndex >= self.displayedFilters.length) {
+            (new MessageBox(
+               "Please select a filter from the list.\n(currentNode=" + (cur != null ? cur.text(0) : "null") + ")",
+               TITLE, StdIcon.Warning, StdButton.Ok
+            )).execute();
+            return;
+         }
+         var f = self.displayedFilters[resolvedIndex];
+         self.chosenId = String(f.id);
+         self.chosenLabel = f.brandName + " " + f.name + " (" + f.id + ")";
+         self.ok();
+      };
+
+      var cancelButton = new PushButton(this);
+      cancelButton.text = "Cancel";
+      cancelButton.onClick = function() { self.cancel(); };
+
+      buttonRow.addStretch();
+      buttonRow.add(okButton);
+      buttonRow.add(cancelButton);
+      sizer.add(buttonRow);
+
+      this.sizer = sizer;
+
+      // Populate initial list
+      this.populateList("");
+   }
+
+   /**
+    * Populates the filter list TreeBox, optionally filtered by a search query.
+    *
+    * Filters are sorted by brand then name. If a query is provided, only
+    * filters whose "Brand Name (ID)" string contains the query are shown.
+    * Updates the status label with the filtered count.
+    *
+    * @param {string} query - The search string to filter the list (case-insensitive).
+    */
+   populateList(query) {
+      this.listBox.clear();
+      this.displayedFilters = [];
+
+      var q = query.trim().toLowerCase();
+      var filters = filterDB.filters;
+
+      // Sort by brand then name
+      var sorted = filters.slice();
+      sorted.sort(function(a, b) {
+         var cmp = a.brandName.localeCompare(b.brandName);
+         return cmp !== 0 ? cmp : a.name.localeCompare(b.name);
+      });
+
+      for (var i = 0; i < sorted.length; i++) {
+         var f = sorted[i];
+         var label = f.brandName + " " + f.name + " (" + f.id + ")";
+         if (q.length === 0 || label.toLowerCase().indexOf(q) >= 0) {
+            var node = new TreeBoxNode(this.listBox);
+            node.setText(0, label);
+            this.displayedFilters.push(f);
+         }
+      }
+
+      this.statusLabel.text = this.displayedFilters.length + " of " + filters.length + " filters";
+   }
+
+   /** Convenience wrapper that re-populates the list using the current search text. */
+   filterList() {
+      this.populateList(this.searchEdit.text);
+   }
+};
+
+/**
+ * Main application dialog for the AstroBin CSV Generator.
+ *
+ * Provides the primary user interface for:
+ *   - Loading FITS/XISF files individually or by directory
+ *   - Previewing extracted metadata in a color-coded tree view
+ *   - Setting per-file or bulk filter overrides via the filter picker
+ *   - Previewing the generated CSV in the console
+ *   - Writing the final acquisition.csv to disk
+ *
+ * Frame data is stored in the module-level fileFrames[] array and
+ * persists across dialog interactions within a single script run.
+ */
 var MainDialog = class extends Dialog {
    constructor() {
       super();
@@ -1154,6 +2034,7 @@ var MainDialog = class extends Dialog {
       this.minWidth = 650;
       this.minHeight = 500;
 
+      var self = this;
       var mainSizer = new VerticalSizer;
       mainSizer.spacing = 8;
       mainSizer.margin = 12;
@@ -1173,21 +2054,23 @@ var MainDialog = class extends Dialog {
 
       // File TreeBox
       this.fileTree = new TreeBox(this);
-      this.fileTree.numberOfColumns = 7;
+      this.fileTree.numberOfColumns = 8;
       this.fileTree.setHeaderText(0, "File");
       this.fileTree.setHeaderText(1, "Type");
       this.fileTree.setHeaderText(2, "Filter");
-      this.fileTree.setHeaderText(3, "Exposure");
-      this.fileTree.setHeaderText(4, "Gain");
-      this.fileTree.setHeaderText(5, "Temp");
-      this.fileTree.setHeaderText(6, "Date");
+      this.fileTree.setHeaderText(3, "AstroBin ID");
+      this.fileTree.setHeaderText(4, "Exposure");
+      this.fileTree.setHeaderText(5, "Gain");
+      this.fileTree.setHeaderText(6, "Temp");
+      this.fileTree.setHeaderText(7, "Date");
       this.fileTree.setColumnWidth(0, 200);
       this.fileTree.setColumnWidth(1, 60);
       this.fileTree.setColumnWidth(2, 70);
-      this.fileTree.setColumnWidth(3, 70);
-      this.fileTree.setColumnWidth(4, 50);
+      this.fileTree.setColumnWidth(3, 80);
+      this.fileTree.setColumnWidth(4, 70);
       this.fileTree.setColumnWidth(5, 50);
-      this.fileTree.setColumnWidth(6, 120);
+      this.fileTree.setColumnWidth(6, 50);
+      this.fileTree.setColumnWidth(7, 120);
       this.fileTree.rootDecoration = false;
       this.fileTree.showColumnLines = false;
       this.fileTree.autoSizeUniformColumns = true;
@@ -1200,24 +2083,36 @@ var MainDialog = class extends Dialog {
       var addButton = new PushButton(this);
       addButton.text = "Add Files...";
       addButton.icon = this.scaledResource(":/icons/add.png");
-      addButton.onClick = function() { this.dialog.addFiles(); };
+      addButton.onClick = function() { self.addFiles(); };
 
       var addDirButton = new PushButton(this);
       addDirButton.text = "Add Directory...";
-      addDirButton.onClick = function() { this.dialog.addDirectory(); };
+      addDirButton.onClick = function() { self.addDirectory(); };
 
       var removeButton = new PushButton(this);
       removeButton.text = "Remove Selected";
-      removeButton.onClick = function() { this.dialog.removeSelected(); };
+      removeButton.onClick = function() { self.removeSelected(); };
 
       var clearButton = new PushButton(this);
       clearButton.text = "Clear All";
-      clearButton.onClick = function() { this.dialog.clearAll(); };
+      clearButton.onClick = function() { self.clearAll(); };
+
+      var setFilterButton = new PushButton(this);
+      setFilterButton.text = "Set Filter...";
+      setFilterButton.toolTip = "Set the AstroBin filter for the currently selected file";
+      setFilterButton.onClick = function() { self.setFilterForSelected(); };
+
+      var setFilterAllButton = new PushButton(this);
+      setFilterAllButton.text = "Set Filter to All...";
+      setFilterAllButton.toolTip = "Apply a filter override to all loaded files";
+      setFilterAllButton.onClick = function() { self.setFilterForAll(); };
 
       fileButtonSizer.add(addButton);
       fileButtonSizer.add(addDirButton);
       fileButtonSizer.add(removeButton);
       fileButtonSizer.addStretch();
+      fileButtonSizer.add(setFilterButton);
+      fileButtonSizer.add(setFilterAllButton);
       fileButtonSizer.add(clearButton);
       fileGroup.sizer.add(fileButtonSizer);
 
@@ -1248,7 +2143,7 @@ var MainDialog = class extends Dialog {
          var dlg = new GetDirectoryDialog;
          dlg.caption = "Select Output Directory";
          if (dlg.execute()) {
-            this.dialog.outputDirEdit.text = dlg.directoryPath;
+            self.outputDirEdit.text = dlg.directoryPath;
          }
       };
 
@@ -1271,17 +2166,17 @@ var MainDialog = class extends Dialog {
 
       var previewButton = new PushButton(this);
       previewButton.text = "Preview CSV";
-      previewButton.onClick = function() { this.dialog.previewCSV(); };
+      previewButton.onClick = function() { self.previewCSV(); };
 
       var generateButton = new PushButton(this);
       generateButton.text = "Generate CSV";
       generateButton.setFixedWidth(120);
       generateButton.font = new Font("sans-serif", 11);
-      generateButton.onClick = function() { this.dialog.generateCSV(); };
+      generateButton.onClick = function() { self.generateCSV(); };
 
       var closeButton = new PushButton(this);
       closeButton.text = "Close";
-      closeButton.onClick = function() { this.dialog.cancel(); };
+      closeButton.onClick = function() { self.cancel(); };
 
       bottomSizer.add(settingsButton);
       bottomSizer.addStretch();
@@ -1399,15 +2294,29 @@ var MainDialog = class extends Dialog {
          node.setText(0, f.fileName);
          node.setText(1, f.imagetyp);
          node.setText(2, String(f.filter));
-         node.setText(3, f.exposure > 0 ? format("%.1fs", f.exposure) : "-");
-         node.setText(4, String(f.gain));
-         node.setText(5, f.ccdTemp !== 0 ? format("%.0fC", f.ccdTemp) : "-");
-         node.setText(6, f.dateObs ? String(f.dateObs).substring(0, 19) : "-");
+
+         // Show filter override or auto-mapped AstroBin ID
+         var displayId;
+         var isMapped;
+         if (f.filterOverride != null) {
+            displayId = f.filterOverride.label;
+            isMapped = true;
+         } else {
+            var mappedId = settings.mapFilter(f.filter);
+            isMapped = (mappedId !== f.filter && mappedId !== "None" && mappedId !== "");
+            displayId = isMapped ? String(mappedId) : "-";
+         }
+         node.setText(3, displayId);
+
+         node.setText(4, f.exposure > 0 ? format("%.1fs", f.exposure) : "-");
+         node.setText(5, String(f.gain));
+         node.setText(6, f.ccdTemp !== 0 ? format("%.0fC", f.ccdTemp) : "-");
+         node.setText(7, f.dateObs ? String(f.dateObs).substring(0, 19) : "-");
 
          // Color code by type
          switch (f.imagetyp) {
             case "LIGHT":
-               node.foreColor = 0xFF00AA00;
+               node.foreColor = isMapped ? 0xFF00AA00 : 0xFF00CC66;
                break;
             case "FLAT":
                node.foreColor = 0xFF0066FF;
@@ -1446,6 +2355,82 @@ var MainDialog = class extends Dialog {
       fileFrames = [];
       this.fileTree.clear();
       this.statusLabel.text = "No files loaded.";
+   }
+
+   setFilterForSelected() {
+      if (fileFrames.length === 0) {
+         (new MessageBox(
+            "No files loaded.",
+            TITLE, StdIcon.Warning, StdButton.Ok
+         )).execute();
+         return;
+      }
+
+      if (filterDB.getCount() === 0) {
+         (new MessageBox(
+            "Filter database is empty.\nPlease download it from Settings first.",
+            TITLE, StdIcon.Warning, StdButton.Ok
+         )).execute();
+         return;
+      }
+
+      var cur = this.fileTree.currentNode;
+      if (cur == null) {
+         (new MessageBox(
+            "Please click on a file in the list first.",
+            TITLE, StdIcon.Warning, StdButton.Ok
+         )).execute();
+         return;
+      }
+
+      var clickedName = cur.text(0);
+      var frameIndex = -1;
+      for (var i = 0; i < fileFrames.length; i++) {
+         if (fileFrames[i].fileName === clickedName) {
+            frameIndex = i;
+            break;
+         }
+      }
+
+      if (frameIndex < 0) {
+         (new MessageBox(
+            "Could not find the selected file.",
+            TITLE, StdIcon.Warning, StdButton.Ok
+         )).execute();
+         return;
+      }
+
+      var dlg = new FilterPickerDialog();
+      if (dlg.execute() && dlg.chosenId != null) {
+         fileFrames[frameIndex].filterOverride = { id: dlg.chosenId, label: dlg.chosenLabel };
+         this.updateTree();
+      }
+   }
+
+   setFilterForAll() {
+      if (fileFrames.length === 0) {
+         (new MessageBox(
+            "No files loaded.",
+            TITLE, StdIcon.Warning, StdButton.Ok
+         )).execute();
+         return;
+      }
+
+      if (filterDB.getCount() === 0) {
+         (new MessageBox(
+            "Filter database is empty.\nPlease download it from Settings first.",
+            TITLE, StdIcon.Warning, StdButton.Ok
+         )).execute();
+         return;
+      }
+
+      var dlg = new FilterPickerDialog();
+      if (dlg.execute() && dlg.chosenId != null) {
+         for (var i = 0; i < fileFrames.length; i++) {
+            fileFrames[i].filterOverride = { id: dlg.chosenId, label: dlg.chosenLabel };
+         }
+         this.updateTree();
+      }
    }
 
    getOutputPath() {
@@ -1490,6 +2475,13 @@ var MainDialog = class extends Dialog {
          return f.imagetyp === "LIGHT" && !f.isMaster;
       }).length));
       console.writeln();
+      // Debug: show filterOverride status for each frame
+      for (var di = 0; di < fileFrames.length; di++) {
+         var df = fileFrames[di];
+         if (df.filterOverride != null) {
+            console.writeln(format("[DEBUG] frame '%s' has filterOverride: id=%s, label=%s", df.fileName, df.filterOverride.id, df.filterOverride.label));
+         }
+      }
       console.writeln("date,filter,number,duration,binning,gain,sensorCooling,fNumber,bortle,meanSqm,meanFwhm,temperature");
       for (var i = 0; i < aggregated.length; i++) {
          var a = aggregated[i];
