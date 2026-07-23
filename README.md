@@ -32,7 +32,7 @@ The script will appear under **Scripts → Utilities → AstroBin CSV Generator*
 
 To update: Simply check for updates again — PixInsight will automatically download and install new versions.
 
-## Installation (Manual)
+## Installation (Manual) - Depercated
 
 1. Extract `AstroBin.7z`.
 2. Copy the `astrobin` folder into PixInsight's `src/scripts` folder.
