@@ -1,37 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xri version="1.0">
-  <description>
-    <p>
-      AstroBin CSV Generator for PixInsight — Generates AstroBin-compatible
-      acquisition.csv files from FITS/XISF light frame headers.
-    </p>
-    <p>
-      Features include automatic filter-to-ID mapping, session detection,
-      overnight shifting, and FITS/XISF header extraction with keyword overrides.
-    </p>
-  </description>
-  <platform os="all" arch="noarch" version="1.9.4:9.99.99">
-    <package fileName="astrobin-1.2.0.zip"
-             sha1="24a7d8d31b3d988253c58b2bf62fdc54e8b1ed73"
-             type="script"
-             releaseDate="20260723">
-      <title>AstroBin CSV Generator v1.2.0</title>
-      <description>
-        <p>
-          Reads FITS/XISF file headers and generates AstroBin-compatible
-          acquisition.csv files for bulk upload.
-        </p>
-        <p>
-          Features:<br/>
-          - Automatic filter-to-ID mapping via AstroBin database download<br/>
-          - Default filter fallback for unmapped entries<br/>
-          - Session detection and overnight shifting<br/>
-          - FITS/XISF header extraction with keyword overrides
-        </p>
-        <p>
-          Based on the AstroBin Upload Utility Python tool.
-        </p>
-      </description>
-    </package>
-  </platform>
+   <description>
+      <p>
+         AstroBin CSV Generator for PixInsight — Generates AstroBin-compatible
+         acquisition.csv files from FITS/XISF light frame headers.
+      </p>
+      <p>
+         Features include automatic filter-to-ID mapping, session detection,
+         overnight shifting, and FITS/XISF header extraction with keyword overrides.
+      </p>
+   </description>
+   <platform os="all" arch="noarch" version="1.9.4:9.99.99">
+      <package fileName="astrobin-1.2.0.zip" sha1="24a7d8d31b3d988253c58b2bf62fdc54e8b1ed73" type="script" releaseDate="20260723">
+         <title>AstroBin CSV Generator v1.2.0</title>
+         <description>
+            <p>Reads FITS/XISF file headers and generates AstroBin-compatible acquisition.csv files for bulk upload.</p>
+            <p>Features: automatic filter-to-ID mapping, default filter fallback, session detection and overnight shifting, FITS/XISF header extraction with keyword overrides.</p>
+            <p>Based on the AstroBin Upload Utility Python tool.</p>
+         </description>
+      </package>
+   </platform>
 </xri>
