@@ -1,5 +1,7 @@
 # AstroBin CSV Generator for PixInsight
 
+> **Note:** This project was developed with the assistance of opencode.
+
 A native PixInsight GUI script for generating AstroBin acquisition CSV files directly from FITS and XISF light frames.
 
 ## Features
@@ -51,10 +53,6 @@ To contribute to this project, follow these steps:
 5. Create the pull request.
 
 Alternatively, see the GitHub documentation on [creating a pull request](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request).
-
-## Development
-
-This project was developed with the assistance of opencode.
 
 ## License
 
