@@ -14,12 +14,19 @@
 
 $ErrorActionPreference = "Stop"
 
-$ScriptVersion = "1.2.1"
+# Extract version from the JS source file
+$SourceScript = "AstroBinCSVGenerator.js"
+$SourceContent = [System.IO.File]::ReadAllText($SourceScript)
+$VersionMatch = [regex]::Match($SourceContent, '#define\s+VERSION\s+"([^"]+)"')
+if (-not $VersionMatch.Success) {
+    Write-Error "Could not extract VERSION from $SourceScript"
+    exit 1
+}
+$ScriptVersion = $VersionMatch.Groups[1].Value
 $PackageName = "astrobin-$ScriptVersion"
 $BuildDir = "build"
 $PackageFile = "$PackageName.zip"
 $XriFile = "updates\updates.xri"
-$SourceScript = "AstroBinCSVGenerator.js"
 
 Write-Host "Building AstroBin CSV Generator package v$ScriptVersion" -ForegroundColor Cyan
 Write-Host ""
