@@ -14,7 +14,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$ScriptVersion = "1.2.0"
+$ScriptVersion = "1.2.1"
 $PackageName = "astrobin-$ScriptVersion"
 $BuildDir = "build"
 $PackageFile = "$PackageName.zip"
