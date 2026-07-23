@@ -60,6 +60,12 @@ Write-Host "Updating $XriFile..." -ForegroundColor Yellow
 $XriContent = [System.IO.File]::ReadAllText($XriFile)
 $XriContent = $XriContent -replace 'sha1="[^"]*"', "sha1=`"$Sha1`""
 
+# Update filename to match the new package
+$XriContent = $XriContent -replace 'fileName="astrobin-[^"]*\.zip"', "fileName=`"$PackageFile`""
+
+# Update title with new version
+$XriContent = $XriContent -replace '<title>AstroBin CSV Generator v[^<]*</title>', "<title>AstroBin CSV Generator v$ScriptVersion</title>"
+
 # Update release date to today
 $Today = Get-Date -Format "yyyyMMdd"
 $XriContent = $XriContent -replace 'releaseDate="[^"]*"', "releaseDate=`"$Today`""
