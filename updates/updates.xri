@@ -10,7 +10,7 @@
       overnight shifting, and FITS/XISF header extraction with keyword overrides.
     </p>
   </description>
-  <platform os="all" arch="noarch" version="1.9.4:">
+  <platform os="all" arch="noarch" version="1.9.4:9.99">
     <package fileName="astrobin-1.2.0.zip"
              sha1="24a7d8d31b3d988253c58b2bf62fdc54e8b1ed73"
              type="script"

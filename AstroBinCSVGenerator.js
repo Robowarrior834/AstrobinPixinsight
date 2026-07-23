@@ -40,11 +40,16 @@ CoreApplication.ensureMinimumVersion(1, 9, 4);
 // Constants
 // =============================================================================
 
-const FITS_BLOCK_SIZE = 2880;
-const FITS_CARD_SIZE = 80;
-const SESSION_GAP_HOURS = 5;
-const FWHM_TO_HFR_FACTOR = 2.0;
+const FITS_BLOCK_SIZE = 2880;  // FITS standard block size in bytes
+const FITS_CARD_SIZE = 80;     // FITS standard header card size in bytes
+const SESSION_GAP_HOURS = 5;   // Minimum gap (hours) to define a new imaging session
+const FWHM_TO_HFR_FACTOR = 2.0; // Conversion factor from HFR to FWHM approximation
 
+/**
+ * Default filter name-to-AstroBin-ID mapping.
+ * Used as a fallback when the downloaded database is unavailable.
+ * IDs correspond to AstroBin's filter database primary keys.
+ */
 const DEFAULT_FILTERS = {
    "Ha": 4663,
    "SII": 4844,
@@ -66,6 +71,11 @@ const DEFAULT_FILTERS = {
    "Exoplanet": 10022
 };
 
+/**
+ * Normalization map for IMAGETYP header values.
+ * Maps the many variants of image type strings (from different capture
+ * software) to a small set of canonical type identifiers.
+ */
 const IMAGE_TYPE_MAP = {
    "LIGHT": "LIGHT",
    "LIGHT FRAME": "LIGHT",
@@ -98,9 +108,10 @@ const IMAGE_TYPE_MAP = {
    "MASTER DARKFLAT": "MASTERDARKFLAT"
 };
 
+// Settings namespace prefix — isolates this version's settings from other scripts
 const SETTINGS_NS = TITLE + "." + VERSION + "_";
-const ASTROBIN_API_BASE = "https://app.astrobin.com/api/v2/equipment/filter/";
-const FILTER_DB_FILE = File.homeDirectory + "/PixInsight/AstroBinFilters.json";
+const ASTROBIN_API_BASE = "https://app.astrobin.com/api/v2/equipment/filter/"; // AstroBin REST API
+const FILTER_DB_FILE = File.homeDirectory + "/PixInsight/AstroBinFilters.json"; // Local cache path
 
 // =============================================================================
 // Network Helper
@@ -940,7 +951,10 @@ function readXISFHeaders(filePath) {
          s = e;
       }
 
-      // Also extract Property entries for XISF-native metadata
+      // Also extract Property entries for XISF-native metadata.
+      // XISF Properties use a different XML structure than FITSKeyword and
+      // contain instrument-specific data like "instrument:gain" that may
+      // not be present in the FITS-compatible keyword block.
       s = 0;
       for (;;) {
          s = headerXml.indexOf("<Property", s);
@@ -1024,7 +1038,10 @@ function extractFrameData(keywords, filePath, settings) {
    frame.filePath = filePath;
    frame.fileName = File.extractNameAndExtension(filePath);
 
-   // Apply keyword overrides
+   // Apply keyword overrides from settings.
+   // Overrides map a canonical keyword name to an alternative FITS keyword
+   // present in the file (e.g., mapping "SITE" to "SITENAME" if the capture
+   // software uses that instead of the standard keyword).
    var kw = Object.assign({}, keywords);
    for (var overrideKey in settings.keywordOverrides) {
       var overrideVal = settings.keywordOverrides[overrideKey];
@@ -1085,12 +1102,16 @@ function extractFrameData(keywords, filePath, settings) {
    frame.pixelSize = Number(kw["XPIXSZ"] || kw["YPIXSZ"] || kw["PIXSIZE"] || settings.pixelSize);
    frame.focalRatio = Number(kw["FOCRATIO"] || kw["FOCUS"] || settings.focalRatio);
 
-   // Calculate image scale and FWHM if not present
+   // Calculate image scale (arcsec/pixel) from optical parameters if not in header.
+   // Formula: IMSCALE = 206.265 * pixelSize(um) / focalLength(mm)
+   // 206.265 is the conversion factor from radians to arcseconds.
    frame.imscale = Number(kw["IMSCALE"] || 0);
    if (frame.imscale === 0 && frame.focalLength > 0 && frame.pixelSize > 0) {
       frame.imscale = (206.265 * frame.pixelSize) / frame.focalLength;
    }
 
+   // Convert HFR to FWHM if FWHM not in header.
+   // Approximation: FWHM ≈ HFR * imageScale * 2.0 (the factor varies by star profile)
    frame.fwhm = Number(kw["FWHM"] || 0);
    frame.hfr = Number(kw["HFR"] || 0);
    if (frame.fwhm === 0 && frame.hfr > 0 && frame.imscale > 0) {
@@ -1184,7 +1205,10 @@ function detectSessions(frames) {
       var firstDate = sessionFrames[0].dateObj;
 
       if (!settings.useObsDate && firstDate.getHours() < 12) {
-         // Shift overnight sessions to previous day
+         // Overnight shift: if the first frame was captured before noon,
+         // attribute the entire session to the previous calendar day.
+         // This is standard practice in astrophotography where an imaging
+         // session that spans midnight is labeled by the evening it started.
          var shifted = new Date(firstDate);
          shifted.setDate(shifted.getDate() - 1);
          var dateStr = shifted.getFullYear() + "-" +
@@ -1240,6 +1264,9 @@ function aggregateFrames(frames) {
       // Only aggregate LIGHT frames for AstroBin CSV
       if (f.imagetyp !== "LIGHT") continue;
 
+      // Composite grouping key: frames with the same values for all these
+      // fields are aggregated into a single CSV row. The "|||" delimiter
+      // is used to avoid collisions with field values.
       var key = [
          f.sessionDate,
          f.filterOverride ? f.filterOverride.id : f.filter,
@@ -1272,7 +1299,8 @@ function aggregateFrames(frames) {
       agg.imagetyp = "LIGHT";
       agg.number = group.length;
 
-      // Compute averages
+      // Compute averages for numeric fields across all frames in this group.
+      // Only non-zero values are included in the average (zero means "not available").
       var sumTemp = 0, sumFwhm = 0, sumSqm = 0, sumFoctemp = 0;
       var sumFocratio = 0;
       var countTemp = 0, countFwhm = 0, countSqm = 0, countFoctemp = 0;
@@ -1376,6 +1404,7 @@ function generateCSV(aggregated, outputPath) {
 // Settings Dialog
 // =============================================================================
 
+// Global settings instance — loaded once at startup, saved on dialog OK
 var settings = new AstroBinSettings();
 settings.load();
 
@@ -1838,6 +1867,8 @@ var SettingsDialog = class extends Dialog {
 // Main Dialog
 // =============================================================================
 
+// Module-level array holding all loaded frame data objects.
+// Persists across dialog interactions within a single script run.
 var fileFrames = []; // Array of extracted frame data
 
 // =============================================================================
@@ -2300,6 +2331,14 @@ var MainDialog = class extends Dialog {
       console.hide();
    }
 
+   /**
+    * Rebuilds the file list TreeBox from the current fileFrames[] array.
+    *
+    * Each row displays: filename, image type, filter name, AstroBin ID,
+    * exposure, gain, temperature, and date. Rows are color-coded by type:
+    *   - Green: LIGHT (mapped), Dark green: LIGHT (unmapped)
+    *   - Blue: FLAT, Red: DARK, Orange: BIAS, Gray: other
+    */
    updateTree() {
       this.fileTree.clear();
 
@@ -2348,6 +2387,7 @@ var MainDialog = class extends Dialog {
       }
    }
 
+   /** Removes all currently selected files from the loaded frame list. */
    removeSelected() {
       var selectedNodes = this.fileTree.selectedNodes;
       if (selectedNodes.length === 0) return;
@@ -2366,12 +2406,17 @@ var MainDialog = class extends Dialog {
       this.statusLabel.text = format("%d file(s) loaded.", fileFrames.length);
    }
 
+   /** Clears all loaded files and resets the UI. */
    clearAll() {
       fileFrames = [];
       this.fileTree.clear();
       this.statusLabel.text = "No files loaded.";
    }
 
+   /**
+    * Opens the FilterPickerDialog to set an AstroBin filter override
+    * on the currently selected file in the tree view.
+    */
    setFilterForSelected() {
       if (fileFrames.length === 0) {
          (new MessageBox(
@@ -2422,6 +2467,10 @@ var MainDialog = class extends Dialog {
       }
    }
 
+   /**
+    * Opens the FilterPickerDialog and applies the chosen filter override
+    * to ALL loaded files (bulk operation).
+    */
    setFilterForAll() {
       if (fileFrames.length === 0) {
          (new MessageBox(
@@ -2448,6 +2497,14 @@ var MainDialog = class extends Dialog {
       }
    }
 
+   /**
+    * Resolves the output file path for the acquisition CSV.
+    *
+    * If the user specified a directory, uses that; otherwise defaults
+    * to the directory of the first loaded file.
+    *
+    * @returns {string} Absolute path to the output acquisition.csv file.
+    */
    getOutputPath() {
       var outputDir = this.outputDirEdit.text.trim();
       if (outputDir.length === 0 && fileFrames.length > 0) {
@@ -2458,6 +2515,12 @@ var MainDialog = class extends Dialog {
        return outputDir + "/acquisition.csv";
    }
 
+   /**
+    * Aggregates frames and prints a CSV preview to the PixInsight console.
+    *
+    * Shows group count, total frame count, filter override debug info,
+    * and the full CSV content for quick verification before writing.
+    */
    previewCSV() {
       if (fileFrames.length === 0) {
          (new MessageBox(
@@ -2508,6 +2571,12 @@ var MainDialog = class extends Dialog {
       console.hide();
    }
 
+   /**
+    * Aggregates frames, confirms overwrite if needed, and writes the CSV file.
+    *
+    * After writing, prints the CSV content to the console with instructions
+    * for manual copy/paste. Shows an error dialog if file I/O fails.
+    */
    generateCSV() {
       if (fileFrames.length === 0) {
          (new MessageBox(
@@ -2588,6 +2657,13 @@ var MainDialog = class extends Dialog {
 // Main Entry Point
 // =============================================================================
 
+/**
+ * Script entry point.
+ *
+ * Initializes the PixInsight console with version info and launches the
+ * MainDialog. The dialog handles all user interaction, file loading,
+ * and CSV generation. Script execution completes when the dialog is closed.
+ */
 (function() {
    console.show();
    console.writeln(format("<b>%s v%s</b>", TITLE, VERSION));
