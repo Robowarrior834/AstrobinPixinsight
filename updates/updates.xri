@@ -11,8 +11,8 @@
       </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.4:9.99.99">
-      <package fileName="astrobin-1.2.1.zip" sha1="7c18410823c97f82ef93ccec05d416c6bde8a1dc" type="script" releaseDate="20260723">
-         <title>AstroBin CSV Generator v1.2.1</title>
+      <package fileName="astrobin-1.2.2.zip" sha1="6a75106de58cca3d4d9a5cc563e472c9a14eadf5" type="script" releaseDate="20260723">
+         <title>AstroBin CSV Generator v1.2.2</title>
          <description>
             <p>Reads FITS/XISF file headers and generates AstroBin-compatible acquisition.csv files for bulk upload.</p>
             <p>Features: automatic filter-to-ID mapping, default filter fallback, session detection and overnight shifting, FITS/XISF header extraction with keyword overrides.</p>

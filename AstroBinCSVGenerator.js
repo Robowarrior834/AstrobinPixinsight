@@ -17,7 +17,7 @@
 #engine v8
 
 #define TITLE "AstroBin CSV Generator"
-#define VERSION "1.2.1"
+#define VERSION "1.2.2"
 
 #feature-id AstroBinCSVGenerator : Utilities > AstroBin CSV Generator
 
