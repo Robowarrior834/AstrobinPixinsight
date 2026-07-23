@@ -2188,6 +2188,9 @@ var MainDialog = class extends Dialog {
       this.sizer = mainSizer;
    }
 
+   /**
+    * Opens a multi-file dialog and loads selected FITS/XISF files.
+    */
    addFiles() {
       var dlg = new OpenFileDialog;
       dlg.caption = "Select FITS/XISF Files";
@@ -2205,6 +2208,9 @@ var MainDialog = class extends Dialog {
       }
    }
 
+   /**
+    * Opens a directory picker and recursively loads all FITS/XISF files found.
+    */
    addDirectory() {
       var dlg = new GetDirectoryDialog;
       dlg.caption = "Select Directory with FITS/XISF Files";
@@ -2235,6 +2241,15 @@ var MainDialog = class extends Dialog {
       }
    }
 
+   /**
+    * Processes an array of file paths: reads headers, extracts frame data,
+    * detects sessions, and updates the UI tree view.
+    *
+    * Skips files that are already loaded (by path) or have unsupported
+    * extensions. Logs warnings for files with no keywords.
+    *
+    * @param {Array} files - Array of absolute file paths to process.
+    */
    processFiles(files) {
       console.show();
       var count = 0;
