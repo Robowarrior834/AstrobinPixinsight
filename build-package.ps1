@@ -57,14 +57,16 @@ Write-Host ""
 
 # Update updates.xri with the correct SHA1
 Write-Host "Updating $XriFile..." -ForegroundColor Yellow
-$XriContent = Get-Content -Path $XriFile -Raw
+$XriContent = [System.IO.File]::ReadAllText($XriFile)
 $XriContent = $XriContent -replace 'sha1="[^"]*"', "sha1=`"$Sha1`""
 
 # Update release date to today
 $Today = Get-Date -Format "yyyyMMdd"
 $XriContent = $XriContent -replace 'releaseDate="[^"]*"', "releaseDate=`"$Today`""
 
-Set-Content -Path $XriFile -Value $XriContent -NoNewline
+# Preserve CRLF line endings (required by PixInsight)
+$XriContent = $XriContent -replace "\r?\n", "`r`n"
+[System.IO.File]::WriteAllText($XriFile, $XriContent, [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "Updated $XriFile with SHA1 and release date" -ForegroundColor Green
 Write-Host ""

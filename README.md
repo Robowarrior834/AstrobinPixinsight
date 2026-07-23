@@ -27,7 +27,7 @@ The easiest way to install and keep the script updated is using PixInsight's bui
 1. In PixInsight, go to **Resources → Updates → Manage Repositories**
 2. Click **Add** and enter this URL:
    ```
-   https://raw.githubusercontent.com/Robowarrior834/AstrobinPixinsight/main/updates/
+   https://robowarrior834.github.io/AstrobinPixinsight/updates/
    ```
 3. Click **OK** to close the dialog
 4. Go to **Resources → Updates → Check for Updates**
