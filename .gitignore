@@ -167,6 +167,7 @@ cython_debug/
 # Configuration
 config.ini
 *.zip
+*.xsgn
 !updates/*.zip
 tests/
 golden_tests/
