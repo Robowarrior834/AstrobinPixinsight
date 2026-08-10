@@ -11,7 +11,7 @@
       </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.4:9.99.99">
-      <package fileName="astrobin-1.2.3.zip" sha1="9feb44b5f30ba303e15faae9a0dcaf474aad5c45" type="script" releaseDate="20260810">
+      <package fileName="astrobin-1.2.3.zip" sha1="34aeb28623cbe1aa713164e104e98f3d328fa1b2" type="script" releaseDate="20260810">
          <title>AstroBin CSV Generator v1.2.3</title>
          <description>
             <p>Reads FITS/XISF file headers and generates AstroBin-compatible acquisition.csv files for bulk upload.</p>
@@ -21,4 +21,3 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="3523470216062290" timestamp="2026-08-10T17:43:19.172Z" encoding="Base64">K5ZLh5Tr2L9XanC1fX1gM9j6TfsMp/mDzqYdX2Yh7OCdKQ9QwxTrMdNQCkh7S8FQ1r1QvK8wLD9dgCPDOkkCAw==</Signature>
