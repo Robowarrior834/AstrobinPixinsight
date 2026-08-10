@@ -100,6 +100,11 @@ Remove-Item -Recur -Force $BuildDir
 Write-Host "Build complete!" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  1. Commit updates/ directory to git"
-Write-Host "  2. Push to GitHub"
-Write-Host "  3. Users can add the repository URL in PixInsight"
+Write-Host "  1. RE-SIGN updates\updates.xri with PixInsight (Script > Code Sign)"
+Write-Host "     using your CPD .xssk keys file. IMPORTANT: this must be done"
+Write-Host "     AFTER this build, since the SHA1/releaseDate were just updated."
+Write-Host "     Skipping this leaves a stale signature (PixInsight shows"
+Write-Host "     'Signature: <* unavailable *>')."
+Write-Host "  2. Commit updates/ directory to git"
+Write-Host "  3. Push to GitHub"
+Write-Host "  4. Users can add the repository URL in PixInsight"
