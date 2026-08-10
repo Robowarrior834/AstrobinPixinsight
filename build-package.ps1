@@ -44,6 +44,16 @@ New-Item -ItemType Directory -Path $PackageDir -Force | Out-Null
 Write-Host "Copying $SourceScript..." -ForegroundColor Yellow
 Copy-Item $SourceScript -Destination $PackageDir
 
+# Copy signed script to package location (if present)
+$SignatureFile = "AstroBinCSVGenerator.xsgn"
+if (Test-Path $SignatureFile) {
+    Write-Host "Copying $SignatureFile..." -ForegroundColor Yellow
+    Copy-Item $SignatureFile -Destination $PackageDir
+}
+else {
+    Write-Warning "$SignatureFile not found - script will be packaged unsigned"
+}
+
 # Create zip package in updates directory
 Write-Host "Creating $PackageFile..." -ForegroundColor Yellow
 $PackagePath = "updates\$PackageFile"

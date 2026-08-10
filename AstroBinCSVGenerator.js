@@ -1,5 +1,5 @@
 /*
- * AstroBin CSV Generator for PixInsight v1.2.0
+ * AstroBin CSV Generator for PixInsight v1.2.3
  *
  * Reads FITS/XISF file headers and generates AstroBin-compatible
  * acquisition.csv files for bulk upload.
@@ -17,11 +17,11 @@
 #engine v8
 
 #define TITLE "AstroBin CSV Generator"
-#define VERSION "1.2.2"
+#define VERSION "1.2.3"
 
 #feature-id AstroBinCSVGenerator : Utilities > AstroBin CSV Generator
 
-#feature-info <b>AstroBin CSV Generator v1.2.0</b><br/>\
+#feature-info <b>AstroBin CSV Generator v1.2.3</b><br/>\
    <br/>\
    Reads FITS/XISF file headers and generates AstroBin-compatible \
    acquisition.csv files for bulk upload.<br/>\
