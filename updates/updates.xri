@@ -2,7 +2,7 @@
 <xri version="1.0">
    <description>
       <p>
-         AstroBin CSV Generator for PixInsight — Generates AstroBin-compatible
+         AstroBin CSV Generator for PixInsight â Generates AstroBin-compatible
          acquisition.csv files from FITS/XISF light frame headers.
       </p>
       <p>

@@ -1,0 +1,5 @@
+# PixInsight signature files must be byte-identical to what was signed.
+# Prevent git from converting CRLF/LF, otherwise the served file differs
+# from the signed file and PixInsight reports "Invalid signature".
+updates/updates.xri -text
+*.xsgn -text
