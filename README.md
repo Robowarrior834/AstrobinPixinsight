@@ -8,8 +8,7 @@ A native PixInsight GUI script for generating AstroBin acquisition CSV files dir
 
 - Reads FITS and XISF headers
 - Extracts exposure, gain, filter, temperature, date, telescope, site and camera metadata
-- Groups frames by session, filter, gain, exposure and binning
-- Handles overnight imaging sessions
+- Groups frames by session, filter, gain, exposure
 - Skips master frames automatically
 - Generates AstroBin Bulk Import CSV files
 - Saves settings between sessions
