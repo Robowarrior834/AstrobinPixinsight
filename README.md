@@ -42,9 +42,9 @@ To update: Simply check for updates again — PixInsight will automatically down
 
 ## Signing the Script (Maintainers)
 
-PixInsight requires scripts and update repositories to be signed so users can trust and install them. Signing uses a secure keys file (`.xssk`) that must be kept private and is excluded from git. The developer ID used by this project is `JamiesAstroPhotos`.
+PixInsight requires scripts and update repositories to be signed so users can trust and install them. Signing uses a secure keys file (`.xssk`) that must be kept private and is excluded from git.
 
-1. **Generate signing keys (one-time)** — In PixInsight, run **Scripts → Development → Signing Keys**. Check **Generate Signing Keys**, select **CPD** (or **Local Signing Identity**), choose an output path and a strong password, then run it. This creates your `.xssk` keys file (e.g. `Jamiesastrophotos_new.xssk`). Do **not** commit this file to the repository.
+1. **Generate signing keys (one-time)** — In PixInsight, run **Scripts → Development → Signing Keys**. Check **Generate Signing Keys**, select **CPD** (or **Local Signing Identity**), choose an output path and a strong password, then run it. This creates your `.xssk` keys file (e.g. `key.xssk`). Do **not** commit this file to the repository.
 
 2. **Sign the script** — Run **Scripts → Development → Code Sign**. Add `AstroBinCSVGenerator.js` to the list, select your `.xssk` keys file, enter its password and run. This generates `AstroBinCSVGenerator.xsgn` in the same folder. Re-sign every time the script changes.
 
