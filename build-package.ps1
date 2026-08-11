@@ -5,8 +5,8 @@
 
 .DESCRIPTION
     Creates a zip package with the proper directory structure for PixInsight's
-    update repository system, calculates the SHA1 checksum, and updates the
-    updates.xri manifest file.
+    update repository system. The package file name is taken from a variable at
+    the top of the script; updates.xri is never modified.
 
 .EXAMPLE
     .\build-package.ps1
@@ -14,19 +14,18 @@
 
 $ErrorActionPreference = "Stop"
 
-# Extract version from the JS source file
-$SourceScript = "AstroBinCSVGenerator.js"
-$SourceContent = [System.IO.File]::ReadAllText($SourceScript)
-$VersionMatch = [regex]::Match($SourceContent, '#define\s+VERSION\s+"([^"]+)"')
+# Zip package file name to create (keep in sync with updates\updates.xri)
+$PackageFile = "astrobin-1.2.3.zip"
+
+# Extract version from the package file name (e.g. astrobin-1.2.3.zip)
+$VersionMatch = [regex]::Match($PackageFile, '-(\d+\.\d+\.\d+)\.zip$')
 if (-not $VersionMatch.Success) {
-    Write-Error "Could not extract VERSION from $SourceScript"
+    Write-Error "Could not extract version from package file name '$PackageFile'"
     exit 1
 }
 $ScriptVersion = $VersionMatch.Groups[1].Value
-$PackageName = "astrobin-$ScriptVersion"
+$SourceScript = "AstroBinCSVGenerator.js"
 $BuildDir = "build"
-$PackageFile = "$PackageName.zip"
-$XriFile = "updates\updates.xri"
 
 Write-Host "Building AstroBin CSV Generator package v$ScriptVersion" -ForegroundColor Cyan
 Write-Host ""
@@ -72,39 +71,15 @@ Write-Host "Package: $PackagePath" -ForegroundColor Green
 Write-Host "SHA1:    $Sha1" -ForegroundColor Green
 Write-Host ""
 
-# Update updates.xri with the correct SHA1
-Write-Host "Updating $XriFile..." -ForegroundColor Yellow
-$XriContent = [System.IO.File]::ReadAllText($XriFile)
-$XriContent = $XriContent -replace 'sha1="[^"]*"', "sha1=`"$Sha1`""
-
-# Update filename to match the new package
-$XriContent = $XriContent -replace 'fileName="astrobin-[^"]*\.zip"', "fileName=`"$PackageFile`""
-
-# Update title with new version
-$XriContent = $XriContent -replace '<title>AstroBin CSV Generator v[^<]*</title>', "<title>AstroBin CSV Generator v$ScriptVersion</title>"
-
-# Update release date to today
-$Today = Get-Date -Format "yyyyMMdd"
-$XriContent = $XriContent -replace 'releaseDate="[^"]*"', "releaseDate=`"$Today`""
-
-# Preserve CRLF line endings (required by PixInsight)
-$XriContent = $XriContent -replace "\r?\n", "`r`n"
-[System.IO.File]::WriteAllText($XriFile, $XriContent, [System.Text.UTF8Encoding]::new($false))
-
-Write-Host "Updated $XriFile with SHA1 and release date" -ForegroundColor Green
-Write-Host ""
-
 # Clean up build directory
 Remove-Item -Recur -Force $BuildDir
 
 Write-Host "Build complete!" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  1. RE-SIGN updates\updates.xri with PixInsight (Script > Code Sign)"
-Write-Host "     using your CPD .xssk keys file. IMPORTANT: this must be done"
-Write-Host "     AFTER this build, since the SHA1/releaseDate were just updated."
-Write-Host "     Skipping this leaves a stale signature (PixInsight shows"
-Write-Host "     'Signature: <* unavailable *>')."
+Write-Host "  1. Update the sha1 attribute in updates\updates.xri to match the"
+Write-Host "     checksum above, then RE-SIGN updates\updates.xri with PixInsight"
+Write-Host "     (Script > Code Sign) using your CPD .xssk keys file."
 Write-Host "  2. Commit updates/ directory to git"
 Write-Host "  3. Push to GitHub"
 Write-Host "  4. Users can add the repository URL in PixInsight"
