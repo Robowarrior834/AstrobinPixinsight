@@ -6,7 +6,8 @@
 .DESCRIPTION
     Creates a zip package with the proper directory structure for PixInsight's
     update repository system. The package file name is taken from a variable at
-    the top of the script; updates.xri is never modified.
+    the top of the script. The sha1 and releaseDate attributes in updates.xri
+    are updated automatically; re-signing updates.xri is still required.
 
 .EXAMPLE
     .\build-package.ps1
@@ -15,10 +16,10 @@
 $ErrorActionPreference = "Stop"
 
 # Zip package file name to create (keep in sync with updates\updates.xri)
-$PackageFile = "astrobin-1.2.3.zip"
+$PackageFile = "astrobin-1.2.3.1.zip"
 
-# Extract version from the package file name (e.g. astrobin-1.2.3.zip)
-$VersionMatch = [regex]::Match($PackageFile, '-(\d+\.\d+\.\d+)\.zip$')
+# Extract version from the package file name (e.g. astrobin-1.2.3.1.zip)
+$VersionMatch = [regex]::Match($PackageFile, '-(\d+\.\d+\.\d+\.\d+)\.zip$')
 if (-not $VersionMatch.Success) {
     Write-Error "Could not extract version from package file name '$PackageFile'"
     exit 1
@@ -71,15 +72,36 @@ Write-Host "Package: $PackagePath" -ForegroundColor Green
 Write-Host "SHA1:    $Sha1" -ForegroundColor Green
 Write-Host ""
 
+# Update the sha1 and releaseDate attributes in updates\updates.xri.
+# NOTE: this invalidates the XRI signature - it MUST be re-signed afterward.
+$XriFile = "updates\updates.xri"
+$ReleaseDate = Get-Date -Format "yyyyMMdd"
+if (Test-Path $XriFile) {
+    Write-Host "Updating $XriFile..." -ForegroundColor Yellow
+    $Encoding = [System.Text.Encoding]::GetEncoding("iso-8859-1")
+    $Text = $Encoding.GetString([System.IO.File]::ReadAllBytes($XriFile))
+    if ($Text -notmatch 'sha1="[0-9a-f]{40}"|releaseDate="\d{8}"') {
+        Write-Warning "No sha1/releaseDate attribute found in $XriFile - update manually"
+    }
+    else {
+        $Updated = [regex]::Replace($Text, 'sha1="[0-9a-f]{40}"', 'sha1="' + $Sha1 + '"')
+        $Updated = [regex]::Replace($Updated, 'releaseDate="\d{8}"', 'releaseDate="' + $ReleaseDate + '"')
+        [System.IO.File]::WriteAllBytes($XriFile, $Encoding.GetBytes($Updated))
+        Write-Host "Updated sha1 and releaseDate. XRI signature is now INVALID - re-sign required!" -ForegroundColor Yellow
+    }
+}
+else {
+    Write-Warning "$XriFile not found - skipping updates.xri update"
+}
+
 # Clean up build directory
 Remove-Item -Recur -Force $BuildDir
 
 Write-Host "Build complete!" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
-Write-Host "  1. Update the sha1 attribute in updates\updates.xri to match the"
-Write-Host "     checksum above, then RE-SIGN updates\updates.xri with PixInsight"
-Write-Host "     (Script > Code Sign) using your CPD .xssk keys file."
+Write-Host "  1. RE-SIGN updates\updates.xri with PixInsight (Script > Code Sign)"
+Write-Host "     using your CPD .xssk keys file - the auto-update invalidated it."
 Write-Host "  2. Commit updates/ directory to git"
 Write-Host "  3. Push to GitHub"
 Write-Host "  4. Users can add the repository URL in PixInsight"
