@@ -174,3 +174,4 @@ golden_tests/
 GEMINI.md
 MEMORY.md
 golden_tests/references/
+*.xssk
