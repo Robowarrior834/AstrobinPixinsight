@@ -1,5 +1,5 @@
 /*
- * AstroBin CSV Generator for PixInsight v1.2.3
+ * AstroBin CSV Generator for PixInsight v1.2.4
  *
  * Reads FITS/XISF file headers and generates AstroBin-compatible
  * acquisition.csv files for bulk upload.
@@ -17,11 +17,11 @@
 #engine v8
 
 #define TITLE "AstroBin CSV Generator"
-#define VERSION "1.2.3"
+#define VERSION "1.2.4"
 
 #feature-id AstroBinCSVGenerator : Utilities > AstroBin CSV Generator
 
-#feature-info <b>AstroBin CSV Generator v1.2.3</b><br/>\
+#feature-info <b>AstroBin CSV Generator v1.2.4</b><br/>\
    <br/>\
    Reads FITS/XISF file headers and generates AstroBin-compatible \
    acquisition.csv files for bulk upload.<br/>\
@@ -1939,8 +1939,8 @@ var FilterPickerDialog = class extends Dialog {
          var cur = self.listBox.currentNode;
          if (cur != null) {
             var curText = cur.text(0);
-            for (var i = 0; i < self.listBox.numberOfNodes; i++) {
-               if (self.listBox.node(i) === cur) {
+            for (var i = 0; i < self.listBox.numberOfChildren; i++) {
+               if (self.listBox.child(i) === cur) {
                   resolvedIndex = i;
                   break;
                }
@@ -2105,6 +2105,7 @@ var MainDialog = class extends Dialog {
       this.fileTree.rootDecoration = false;
       this.fileTree.showColumnLines = false;
       this.fileTree.autoSizeUniformColumns = true;
+      this.fileTree.multipleSelection = true;
       fileGroup.sizer.add(this.fileTree);
 
       // File buttons
@@ -2129,7 +2130,7 @@ var MainDialog = class extends Dialog {
 
       var setFilterButton = new PushButton(this);
       setFilterButton.text = "Set Filter...";
-      setFilterButton.toolTip = "Set the AstroBin filter for the currently selected file";
+      setFilterButton.toolTip = "Set the AstroBin filter for all selected files (Ctrl/Shift+click to select multiple)";
       setFilterButton.onClick = function() { self.setFilterForSelected(); };
 
       var setFilterAllButton = new PushButton(this);
@@ -2329,6 +2330,58 @@ var MainDialog = class extends Dialog {
    }
 
    /**
+    * Renders a single fileTree row from its frame data.
+    *
+    * Fills all eight columns and applies the row's type color. Used by
+    * updateTree() for full rebuilds and by setFilterForSelected() to
+    * refresh individual rows in place (preserving the user's selection).
+    *
+    * @param {TreeBoxNode} node - The tree node to render.
+    * @param {object} f - The frame data object.
+    */
+   renderRow(node, f) {
+      node.setText(0, f.fileName);
+      node.setText(1, f.imagetyp);
+      node.setText(2, String(f.filter));
+
+      // Show filter override or auto-mapped AstroBin ID
+      var displayId;
+      var isMapped;
+      if (f.filterOverride != null) {
+         displayId = f.filterOverride.label;
+         isMapped = true;
+      } else {
+         var mappedId = settings.mapFilter(f.filter);
+         isMapped = (mappedId !== f.filter && mappedId !== "None" && mappedId !== "");
+         displayId = isMapped ? String(mappedId) : "-";
+      }
+      node.setText(3, displayId);
+
+      node.setText(4, f.exposure > 0 ? format("%.1fs", f.exposure) : "-");
+      node.setText(5, String(f.gain));
+      node.setText(6, f.ccdTemp !== 0 ? format("%.0fC", f.ccdTemp) : "-");
+      node.setText(7, f.dateObs ? String(f.dateObs).substring(0, 19) : "-");
+
+      // Color code by type
+      switch (f.imagetyp) {
+         case "LIGHT":
+            node.foreColor = isMapped ? 0xFF00AA00 : 0xFF00CC66;
+            break;
+         case "FLAT":
+            node.foreColor = 0xFF0066FF;
+            break;
+         case "DARK":
+            node.foreColor = 0xFFAA0000;
+            break;
+         case "BIAS":
+            node.foreColor = 0xFFAA6600;
+            break;
+         default:
+            node.foreColor = 0xFF808080;
+      }
+   }
+
+   /**
     * Rebuilds the file list TreeBox from the current fileFrames[] array.
     *
     * Each row displays: filename, image type, filter name, AstroBin ID,
@@ -2340,47 +2393,8 @@ var MainDialog = class extends Dialog {
       this.fileTree.clear();
 
       for (var i = 0; i < fileFrames.length; i++) {
-         var f = fileFrames[i];
          var node = new TreeBoxNode(this.fileTree);
-         node.setText(0, f.fileName);
-         node.setText(1, f.imagetyp);
-         node.setText(2, String(f.filter));
-
-         // Show filter override or auto-mapped AstroBin ID
-         var displayId;
-         var isMapped;
-         if (f.filterOverride != null) {
-            displayId = f.filterOverride.label;
-            isMapped = true;
-         } else {
-            var mappedId = settings.mapFilter(f.filter);
-            isMapped = (mappedId !== f.filter && mappedId !== "None" && mappedId !== "");
-            displayId = isMapped ? String(mappedId) : "-";
-         }
-         node.setText(3, displayId);
-
-         node.setText(4, f.exposure > 0 ? format("%.1fs", f.exposure) : "-");
-         node.setText(5, String(f.gain));
-         node.setText(6, f.ccdTemp !== 0 ? format("%.0fC", f.ccdTemp) : "-");
-         node.setText(7, f.dateObs ? String(f.dateObs).substring(0, 19) : "-");
-
-         // Color code by type
-         switch (f.imagetyp) {
-            case "LIGHT":
-               node.foreColor = isMapped ? 0xFF00AA00 : 0xFF00CC66;
-               break;
-            case "FLAT":
-               node.foreColor = 0xFF0066FF;
-               break;
-            case "DARK":
-               node.foreColor = 0xFFAA0000;
-               break;
-            case "BIAS":
-               node.foreColor = 0xFFAA6600;
-               break;
-            default:
-               node.foreColor = 0xFF808080;
-         }
+         this.renderRow(node, fileFrames[i]);
       }
    }
 
@@ -2412,7 +2426,11 @@ var MainDialog = class extends Dialog {
 
    /**
     * Opens the FilterPickerDialog to set an AstroBin filter override
-    * on the currently selected file in the tree view.
+    * on all currently selected files in the tree view.
+    *
+    * Supports multi-selection (Ctrl/Shift+click). The chosen override is
+    * applied to every selected frame, and only the affected rows are
+    * re-rendered in place so the user's selection is preserved.
     */
    setFilterForSelected() {
       if (fileFrames.length === 0) {
@@ -2431,27 +2449,53 @@ var MainDialog = class extends Dialog {
          return;
       }
 
-      var cur = this.fileTree.currentNode;
-      if (cur == null) {
+      // Resolve selection: selectedNodes first, then fall back to currentNode
+      var selectedNodes = this.fileTree.selectedNodes;
+      if (selectedNodes.length === 0 && this.fileTree.currentNode != null) {
+         selectedNodes = [this.fileTree.currentNode];
+      }
+
+      if (selectedNodes.length === 0) {
          (new MessageBox(
-            "Please click on a file in the list first.",
+            "Please select one or more files in the list first.\nUse Ctrl/Shift+click to select multiple.",
             TITLE, StdIcon.Warning, StdButton.Ok
          )).execute();
          return;
       }
 
-      var clickedName = cur.text(0);
-      var frameIndex = -1;
-      for (var i = 0; i < fileFrames.length; i++) {
-         if (fileFrames[i].fileName === clickedName) {
-            frameIndex = i;
-            break;
+      // Map selected nodes to frame indices. Identity comparison via
+      // fileTree.child(i) === sel is not reliable in the V8 runtime, so fall
+      // back to matching by file name text when identity matching fails.
+      var frameIndices = [];
+      for (var s = 0; s < selectedNodes.length; s++) {
+         var sel = selectedNodes[s];
+         var resolvedIndex = -1;
+
+         // Pass 1: node identity (node order == fileFrames order)
+         for (var i = 0; i < this.fileTree.numberOfChildren; i++) {
+            if (this.fileTree.child(i) === sel) {
+               resolvedIndex = i;
+               break;
+            }
          }
+
+         // Pass 2: match by file name in column 0
+         if (resolvedIndex < 0) {
+            var selName = sel.text(0);
+            for (var j = 0; j < fileFrames.length; j++) {
+               if (fileFrames[j].fileName === selName) {
+                  resolvedIndex = j;
+                  break;
+               }
+            }
+         }
+
+         if (resolvedIndex >= 0) frameIndices.push(resolvedIndex);
       }
 
-      if (frameIndex < 0) {
+      if (frameIndices.length === 0) {
          (new MessageBox(
-            "Could not find the selected file.",
+            "Could not find the selected files.",
             TITLE, StdIcon.Warning, StdButton.Ok
          )).execute();
          return;
@@ -2459,8 +2503,13 @@ var MainDialog = class extends Dialog {
 
       var dlg = new FilterPickerDialog();
       if (dlg.execute() && dlg.chosenId != null) {
-         fileFrames[frameIndex].filterOverride = { id: dlg.chosenId, label: dlg.chosenLabel };
-         this.updateTree();
+         var override = { id: dlg.chosenId, label: dlg.chosenLabel };
+         for (var k = 0; k < frameIndices.length; k++) {
+            var idx = frameIndices[k];
+            fileFrames[idx].filterOverride = override;
+            this.renderRow(this.fileTree.child(idx), fileFrames[idx]);
+         }
+         this.statusLabel.text = format("%d file(s) updated to '%s'.", frameIndices.length, dlg.chosenLabel);
       }
    }
 

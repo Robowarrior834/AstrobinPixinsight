@@ -40,6 +40,24 @@ To update: Simply check for updates again — PixInsight will automatically down
 4. Click **Add** and select the folder.
 5. Run **Scripts → Utilities → AstroBin CSV Generator**.
 
+## Signing the Script (Maintainers)
+
+PixInsight requires scripts and update repositories to be signed so users can trust and install them. Signing uses a secure keys file (`.xssk`) that must be kept private and is excluded from git. The developer ID used by this project is `JamiesAstroPhotos`.
+
+1. **Generate signing keys (one-time)** — In PixInsight, run **Scripts → Development → Signing Keys**. Check **Generate Signing Keys**, select **CPD** (or **Local Signing Identity**), choose an output path and a strong password, then run it. This creates your `.xssk` keys file (e.g. `Jamiesastrophotos_new.xssk`). Do **not** commit this file to the repository.
+
+2. **Sign the script** — Run **Scripts → Development → Code Sign**. Add `AstroBinCSVGenerator.js` to the list, select your `.xssk` keys file, enter its password and run. This generates `AstroBinCSVGenerator.xsgn` in the same folder. Re-sign every time the script changes.
+
+3. **Build the update package** — Run the build script:
+   ```
+   .\build-package.ps1
+   ```
+   This zips the script and its `.xsgn` signature into `updates\`, and updates the `sha1` and `releaseDate` attributes in `updates\updates.xri`.
+
+4. **Re-sign `updates\updates.xri`** — Step 3 invalidates the repository signature, so run **Scripts → Development → Code Sign** again, add `updates\updates.xri`, select your `.xssk` keys file, enter the password and run. This appends a new `<Signature>` element to the XRI document.
+
+5. **Commit and push** — Commit the `updates\` directory (the `.zip`, `updates.xri` and the root `AstroBinCSVGenerator.xsgn`) and push to GitHub. Users will then see the update when they check for updates.
+
 ## Contributing
 
 This script is intended for educational purposes in the field of astrophotography. It is part of an open-source project and contributions or suggestions for improvements are welcome.
