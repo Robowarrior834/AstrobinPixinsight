@@ -2,7 +2,7 @@
 <xri version="1.0">
    <description>
       <p>
-         AstroBin CSV Generator for PixInsight â Generates AstroBin-compatible
+         AstroBin CSV Generator for PixInsight Generates AstroBin-compatible
          acquisition.csv files from FITS/XISF light frame headers.
       </p>
       <p>
@@ -11,7 +11,7 @@
       </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.4:9.99.99">
-      <package fileName="astrobin-1.2.5.zip" sha1="03b7eb96bc6856e0b348acfb07eb848359ff8445" type="script" releaseDate="20260812">
+      <package fileName="astrobin-1.2.5.zip" sha1="1e295204423d233df22077e497bfa66b1a2dc930" type="script" releaseDate="20260812">
          <title>AstroBin CSV Generator v1.2.5</title>
          <description>
             <p>Version 1.2.5 | Fixed when filter is none</p>
@@ -22,4 +22,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="JamiesAstroPhotos" timestamp="2026-08-12T13:13:37.585Z" encoding="Base64">jCTP/ZQKImaP8R79PgPFwe52q3I0ikxpPtYVyNsd2FZOeKUwOZEVLPMX8GRz59azYwiHVWIuAqafp68JikFgBA==</Signature>
+<Signature developerId="JamiesAstroPhotos" timestamp="2026-08-12T13:17:08.677Z" encoding="Base64">uLaVqKDKjrZdUyMy7hLO+r3aEgONJp/M9OA9n7zDh1LEoSQJBxXo+mNa5xtH+lhah0LFFbOiipIP/Q8qycBIDA==</Signature>
