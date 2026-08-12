@@ -632,9 +632,9 @@ function AstroBinSettings() {
     * @returns {string} An AstroBin numeric ID string, or the original name if unmapped.
     */
    this.mapFilter = function(name) {
-      if (name == null) return "None";
+      if (name == null) return "";
       var n = String(name).trim();
-      if (n.length === 0) return "None";
+      if (n.length === 0) return "";
 
       // Pass 1: exact match on user's custom filter map
       if (n in this.filterMap) return this.filterMap[n];

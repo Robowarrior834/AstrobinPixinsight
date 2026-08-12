@@ -16,7 +16,7 @@
 $ErrorActionPreference = "Stop"
 
 # Zip package file name to create (keep in sync with updates\updates.xri)
-$PackageFile = "astrobin-1.2.4.zip"
+$PackageFile = "astrobin-1.2.5.zip"
 
 # Extract version from the package file name (e.g. astrobin-1.2.3.zip)
 $VersionMatch = [regex]::Match($PackageFile, '-(\d+\.\d+\.\d+)\.zip$')
