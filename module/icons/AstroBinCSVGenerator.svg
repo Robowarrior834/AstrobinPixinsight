@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" version="1.1" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#2b3a67"/>
+<stop offset="1" stop-color="#1a2442"/>
+</linearGradient>
+<linearGradient id="doc" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#ffffff"/>
+<stop offset="1" stop-color="#e8ecf5"/>
+</linearGradient>
+</defs>
+<rect x="0" y="0" width="512" height="512" rx="96" fill="url(#bg)"/>
+<path d="M140 96h168l64 64v256a16 16 0 0 1-16 16H140a16 16 0 0 1-16-16V112a16 16 0 0 1 16-16z" fill="url(#doc)"/>
+<path d="M308 96l64 64h-64z" fill="#cfd8ea"/>
+<g stroke="#8fa3cc" stroke-width="6">
+<line x1="140" y1="268" x2="356" y2="268"/>
+<line x1="248" y1="192" x2="248" y2="420"/>
+<line x1="340" y1="192" x2="340" y2="420"/>
+</g>
+<rect x="148" y="196" width="84" height="24" rx="12" fill="#6d8cd9"/>
+<rect x="256" y="196" width="76" height="24" rx="12" fill="#5a7cc4"/>
+<rect x="148" y="276" width="84" height="24" rx="12" fill="#7fa3e8"/>
+<rect x="256" y="276" width="76" height="24" rx="12" fill="#4a6bb0"/>
+<rect x="148" y="356" width="84" height="24" rx="12" fill="#7fa3e8"/>
+<rect x="256" y="356" width="76" height="24" rx="12" fill="#4a6bb0"/>
+<circle cx="392" cy="140" r="26" fill="#ffd66b"/>
+<path d="M392 100l12 28 30 4-22 21 6 30-26-14-26 14 6-30-22-21 30-4z" fill="#ffb84d"/>
+</svg>
