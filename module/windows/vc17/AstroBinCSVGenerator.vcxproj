@@ -132,6 +132,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\AstroBinCSVGeneratorEngine.cpp"/>
     <ClCompile Include="..\..\AstroBinCSVGeneratorInstance.cpp"/>
     <ClCompile Include="..\..\AstroBinCSVGeneratorInterface.cpp"/>
     <ClCompile Include="..\..\AstroBinCSVGeneratorModule.cpp"/>

@@ -4,7 +4,7 @@
 //  / ____// /___ / /___   PixInsight Class Library
 // /_/     \____//_____/   PCL 2.10.4
 // ----------------------------------------------------------------------------
-// AstroBin CSV Generator Process Module Version 1.0.0
+// AstroBin CSV Generator Process Module Version 1.2.5
 // ----------------------------------------------------------------------------
 // AstroBinCSVGeneratorInstance.cpp - Generated 2026-08-12
 // ----------------------------------------------------------------------------
@@ -26,9 +26,11 @@
 #include "AstroBinCSVGeneratorInstance.h"
 #include "AstroBinCSVGeneratorParameters.h"
 #include "AstroBinCSVGeneratorProcess.h"
+#include "AstroBinCSVGeneratorEngine.h"
 
 #include <pcl/Console.h>
 #include <pcl/Exception.h>
+#include <pcl/File.h>
 
 namespace pcl
 {
@@ -127,8 +129,74 @@ bool AstroBinCSVGeneratorInstance::CanExecuteGlobal( String& whyNot ) const
 bool AstroBinCSVGeneratorInstance::ExecuteGlobal()
 {
    Console c;
-   c.WriteLn( "<end><cbr>AstroBin CSV Generator: CSV generation engine not "
-              "implemented yet." );
+   c.Show();
+   c.WriteLn( "<end><cbr><br><b>AstroBin CSV Generator</b>" );
+   c.WriteLn();
+
+   // Resolve the output path the same way the engine does.
+   String outputDirectory = p_outputDirectory.IsEmpty() ? p_inputDirectory : p_outputDirectory;
+   String outputFileName  = p_outputFileName.IsEmpty() ? String( "acquisition.csv" ) : p_outputFileName;
+   String outputPath      = outputDirectory + "/" + outputFileName;
+
+   // Auto-download the filter database if the local cache is missing.
+   AstroBinCSVGeneratorEngine engine;
+
+   engine.SessionGapHours     = p_sessionGapHours;
+   engine.ShiftOvernight      = p_shiftOvernight;
+   engine.UseObservingDate    = p_useObservingDate;
+   engine.DefaultGain         = p_defaultGain;
+   engine.DefaultTemperature  = p_defaultTemperature;
+   engine.DefaultFilter       = p_defaultFilter;
+   engine.UseDefaultFilter    = p_useDefaultFilter;
+   engine.SiteName            = p_siteName;
+   engine.SiteLatitude        = p_siteLatitude;
+   engine.SiteLongitude       = p_siteLongitude;
+   engine.SiteElevation       = p_siteElevation;
+   engine.Bortle              = p_bortle;
+   engine.SQM                 = p_sqm;
+   engine.FocalLength         = p_focalLength;
+   engine.PixelSize           = p_pixelSize;
+   engine.FocalRatio          = p_focalRatio;
+   engine.FilterMapJSON       = p_filterMap;
+   engine.KeywordOverridesJSON = p_keywordOverrides;
+   engine.FilterDatabasePath  = p_filterDatabasePath;
+
+   if ( !File::Exists( engine.ResolveDatabasePath() ) )
+      engine.DownloadFilterDatabase();
+
+   if ( !engine.Generate( p_inputDirectory, p_outputDirectory, p_outputFileName,
+                          p_recursive, p_overrideFilePath ) )
+   {
+      c.CriticalLn( "Error generating CSV file." );
+      return false;
+   }
+
+   const std::vector<AstroBinCSVGeneratorEngine::AggregateRow>& rows = engine.Results();
+   if ( rows.empty() )
+   {
+      c.WarningLn( "No LIGHT frames found to generate CSV." );
+      return false;
+   }
+
+   c.WriteLn();
+   c.WriteLn( "Generating AstroBin CSV..." );
+   c.WriteLn( "  Output: " + outputPath );
+   c.WriteLn( "  LIGHT groups: " + String( rows.size() ) );
+   c.WriteLn();
+   c.WriteLn( "<b>=== CSV Output (select and copy below) ===</b>" );
+   try
+   {
+      c.Write( String( File::ReadTextFile( outputPath ).c_str() ) );
+   }
+   catch ( ... )
+   {
+      c.CriticalLn( "Could not read back the generated CSV file for preview." );
+   }
+   c.WriteLn( "<b>=== End CSV ===</b>" );
+   c.WriteLn();
+   c.WriteLn( "File: " + outputPath + " (" + String( rows.size() ) + " rows)" );
+   c.WriteLn();
+
    return true;
 }
 

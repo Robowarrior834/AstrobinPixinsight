@@ -4,7 +4,7 @@
 //  / ____// /___ / /___   PixInsight Class Library
 // /_/     \____//_____/   PCL 2.10.4
 // ----------------------------------------------------------------------------
-// AstroBin CSV Generator Process Module Version 1.0.0
+// AstroBin CSV Generator Process Module Version 1.2.5
 // ----------------------------------------------------------------------------
 // AstroBinCSVGeneratorEngine.h - Core CSV generation engine
 // ----------------------------------------------------------------------------
@@ -32,6 +32,7 @@
 #include <vector>
 #include <map>
 #include <limits>
+#include <cmath>
 
 namespace pcl
 {
@@ -92,7 +93,7 @@ private:
 
    struct ParserState
    {
-      const std::string& s;
+      std::string s;
       size_t pos = 0;
       bool ok = true;
    };
@@ -193,7 +194,7 @@ public:
       double   meanSqm = 0;
       double   temperature = 0;
       double   fNumber = 0;
-      int      bortle = 0;
+      double   bortle = 0;
    };
 
    // -------------------------------------------------------------------------
@@ -340,13 +341,21 @@ private:
 
    static bool WriteCSV( const std::vector<AggregateRow>& rows, const String& outputPath );
 
+public:
+
+   static double JsRound( double v ) { return ( std::isnan( v ) || std::isinf( v ) ) ? v : std::floor( v + 0.5 ); }       // JS Math.round()
+   static double JsRound2( double v ) { return ( std::isnan( v ) || std::isinf( v ) ) ? v : std::floor( v*100.0 + 0.5 )/100.0; } // Math.round(x*100)/100
+
    // -------------------------------------------------------------------------
    // Value conversion helpers (mirror JavaScript Number()/String() semantics)
    // -------------------------------------------------------------------------
 
    static bool     JsNumber( const std::string& s, double& out ); // JS Number(string)
    static double   JsNumber( const ABCGJSON::Value& v );          // JS Number(value)
-   static std::string JsString( double v );                       // JS String(number)
+
+private:
+
+   static std::string JsString( double v );                      // JS String(number)
    static bool     JsTruthy( const ABCGJSON::Value& v );          // JS || semantics
 
    static const ABCGJSON::Value* FirstTruthy( const std::map<std::string,ABCGJSON::Value>& kw,
@@ -366,8 +375,6 @@ private:
    static void   AddDays( int& year, int& month, int& day, int days );
    static String FormatDate( int year, int month, int day );
 
-   static int    JsRound( double v ) { return int( std::floor( v + 0.5 ) ); } // JS Math.round()
-   static double JsRound2( double v ) { return std::floor( v*100.0 + 0.5 )/100.0; } // Math.round(x*100)/100
 };
 
 // ----------------------------------------------------------------------------

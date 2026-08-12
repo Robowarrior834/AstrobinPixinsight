@@ -4,7 +4,7 @@
 //  / ____// /___ / /___   PixInsight Class Library
 // /_/     \____//_____/   PCL 2.10.4
 // ----------------------------------------------------------------------------
-// AstroBin CSV Generator Process Module Version 1.0.0
+// AstroBin CSV Generator Process Module Version 1.2.5
 // ----------------------------------------------------------------------------
 // AstroBinCSVGeneratorInterface.h - Generated 2026-08-12
 // ----------------------------------------------------------------------------
@@ -127,12 +127,14 @@ private:
          SectionBar    Filters_SectionBar;
          Control       Filters_Section;
          VerticalSizer Filters_Section_Sizer;
-            HorizontalSizer FilterDatabase_Sizer;
-               Label            FilterDatabase_Label;
-               Edit             FilterDatabase_Edit;
-               PushButton       FilterDatabase_Browse_PushButton;
-               PushButton       DownloadFilters_PushButton;
-            HorizontalSizer DefaultFilter_Sizer;
+             HorizontalSizer FilterDatabase_Sizer;
+                Label            FilterDatabase_Label;
+                Edit             FilterDatabase_Edit;
+                PushButton       FilterDatabase_Browse_PushButton;
+                PushButton       DownloadFilters_PushButton;
+             HorizontalSizer FilterDatabase_Status_Sizer;
+                Label            FilterDatabase_Status_Label;
+             HorizontalSizer DefaultFilter_Sizer;
                Label            DefaultFilter_Label;
                Edit             DefaultFilter_Edit;
                CheckBox         UseDefaultFilter_CheckBox;
@@ -149,6 +151,7 @@ private:
    GUIData* GUI = nullptr;
 
    void UpdateControls();
+   void UpdateFilterDatabaseStatus();
    void LoadSettings();
    void SaveSettings() const;
 

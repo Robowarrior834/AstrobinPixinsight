@@ -13,6 +13,19 @@ A native PixInsight GUI script for generating AstroBin acquisition CSV files dir
 - Generates AstroBin Bulk Import CSV files
 - Saves settings between sessions
 
+## Native Process Module (C++)
+
+In addition to the JavaScript script, this repository contains a native C++ PCL
+process module (`module/`) that ports the v1.2.5 algorithm byte-for-byte.
+
+- Build: `C:\PCL\build-module.cmd` → `C:\PCL\bin\x64\AstroBinCSVGenerator-pxm.dll`
+- Install: copy the DLL into the PixInsight `bin` folder with PixInsight closed.
+- Use: **Process → Utility → AstroBin CSV Generator**.
+
+Note: PixInsight only loads **signed** modules. Sign the DLL (license-based
+signing keys) before distributing. See [docs/MODULE.md](docs/MODULE.md) for
+build, install, usage and validation details.
+
 ## Installation (Recommended - Update Repository)
 
 The easiest way to install and keep the script updated is using PixInsight's built-in update repository system:

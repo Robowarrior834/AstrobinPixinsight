@@ -4,7 +4,7 @@
 //  / ____// /___ / /___   PixInsight Class Library
 // /_/     \____//_____/   PCL 2.10.4
 // ----------------------------------------------------------------------------
-// AstroBin CSV Generator Process Module Version 1.0.0
+// AstroBin CSV Generator Process Module Version 1.2.5
 // ----------------------------------------------------------------------------
 // AstroBinCSVGeneratorInterface.cpp - Generated 2026-08-12
 // ----------------------------------------------------------------------------
@@ -26,20 +26,55 @@
 #include "AstroBinCSVGeneratorInterface.h"
 #include "AstroBinCSVGeneratorParameters.h"
 #include "AstroBinCSVGeneratorProcess.h"
+#include "AstroBinCSVGeneratorEngine.h"
 
 #include <pcl/Console.h>
 #include <pcl/FileDialog.h>
+#include <pcl/MetaModule.h>
 #include <pcl/Settings.h>
 
 namespace pcl
 {
 
 // ----------------------------------------------------------------------------
-// Settings namespace prefix, shared with the AstroBin CSV Generator script
+// Settings namespace prefix, shared with the Astro Bin CSV Generator script
 // (v1.2.5) so existing user settings carry over to this module.
 // ----------------------------------------------------------------------------
 
 #define SETTINGS_NS "AstroBin CSV Generator.1.2.5_"
+
+// ----------------------------------------------------------------------------
+// Background filter database download.
+// ----------------------------------------------------------------------------
+
+class FilterDatabaseDownloadThread : public Thread
+{
+public:
+
+   FilterDatabaseDownloadThread( const String& dbPath )
+      : m_dbPath( dbPath )
+   {
+   }
+
+   bool Succeeded() const { return m_succeeded; }
+   size_type Count() const { return m_count; }
+
+protected:
+
+   void Run() override
+   {
+      AstroBinCSVGeneratorEngine engine;
+      engine.FilterDatabasePath = m_dbPath;
+      m_succeeded = engine.DownloadFilterDatabase();
+      m_count = engine.FilterCount();
+   }
+
+private:
+
+   String m_dbPath;
+   bool   m_succeeded = false;
+   size_type m_count = 0;
+};
 
 // ----------------------------------------------------------------------------
 
@@ -181,7 +216,48 @@ void AstroBinCSVGeneratorInterface::UpdateControls()
    GUI->UseDefaultFilter_CheckBox.SetChecked( m_instance.p_useDefaultFilter );
    GUI->FilterMap_Edit.SetText( m_instance.p_filterMap );
 
+   UpdateFilterDatabaseStatus();
+
    GUI->KeywordOverrides_Edit.SetText( m_instance.p_keywordOverrides );
+}
+
+// ----------------------------------------------------------------------------
+
+void AstroBinCSVGeneratorInterface::UpdateFilterDatabaseStatus()
+{
+   if ( GUI == nullptr )
+      return;
+
+   String dbPath = m_instance.p_filterDatabasePath.Trimmed();
+   if ( dbPath.IsEmpty() )
+      dbPath = File::HomeDirectory() + "/PixInsight/AstroBinFilters.json";
+
+   if ( File::Exists( dbPath ) )
+   {
+      try
+      {
+         IsoString content = File::ReadTextFile( dbPath );
+         ABCGJSON::Value root;
+         if ( ABCGJSON::Parse( content.c_str(), root ) && root.IsObject() )
+         {
+            const ABCGJSON::Value* filters = root.Find( "filters" );
+            if ( filters != nullptr && filters->IsArray() )
+            {
+               const ABCGJSON::Value* updated = root.Find( "lastUpdated" );
+               String when = ( updated != nullptr && updated->type == ABCGJSON::StringType )
+                             ? String( updated->str.c_str() ) : String( "unknown" );
+               GUI->FilterDatabase_Status_Label.SetText(
+                  "Database: " + String( filters->arr.size() ) + " filters (updated: " + when + ")" );
+               return;
+            }
+         }
+      }
+      catch ( ... )
+      {
+      }
+   }
+
+   GUI->FilterDatabase_Status_Label.SetText( "Database: not found (click Download)" );
 }
 
 // ----------------------------------------------------------------------------
@@ -226,9 +302,12 @@ void AstroBinCSVGeneratorInterface::LoadSettings()
       m_instance.p_defaultFilter = s;
    if ( Settings::Read( SETTINGS_NS "useDefaultFilter", b ) )
       m_instance.p_useDefaultFilter = b;
-   if ( Settings::Read( SETTINGS_NS "filterMap", s ) )
-      if ( !s.IsEmpty() )
-         m_instance.p_filterMap = s;
+    if ( Settings::Read( SETTINGS_NS "filterMap", s ) )
+       if ( !s.IsEmpty() )
+          m_instance.p_filterMap = s;
+    if ( Settings::Read( SETTINGS_NS "filterDatabasePath", s ) )
+       if ( !s.IsEmpty() )
+          m_instance.p_filterDatabasePath = s;
 }
 
 // ----------------------------------------------------------------------------
@@ -252,6 +331,7 @@ void AstroBinCSVGeneratorInterface::SaveSettings() const
    Settings::Write( SETTINGS_NS "defaultFilter", m_instance.p_defaultFilter );
    Settings::Write( SETTINGS_NS "useDefaultFilter", bool( m_instance.p_useDefaultFilter ) );
    Settings::Write( SETTINGS_NS "filterMap", m_instance.p_filterMap );
+   Settings::Write( SETTINGS_NS "filterDatabasePath", m_instance.p_filterDatabasePath );
 }
 
 // ----------------------------------------------------------------------------
@@ -400,9 +480,40 @@ void AstroBinCSVGeneratorInterface::e_Browse_Click( Button& sender, bool /*check
 
 void AstroBinCSVGeneratorInterface::e_Download_Click( Button& /*sender*/, bool /*checked*/ )
 {
-   Console c;
-   c.WriteLn( "<end><cbr>AstroBin CSV Generator: filter database download not "
-              "implemented yet." );
+   if ( GUI == nullptr )
+      return;
+
+   String dbPath = m_instance.p_filterDatabasePath.Trimmed();
+   if ( dbPath.IsEmpty() )
+      dbPath = File::HomeDirectory() + "/PixInsight/AstroBinFilters.json";
+
+   GUI->DownloadFilters_PushButton.Disable();
+   GUI->FilterDatabase_Status_Label.SetText( "<raw>Downloading filter database...<flush>" );
+   GUI->FilterDatabase_Status_Label.SetTextAlignment( TextAlign::Left|TextAlign::VertCenter );
+
+   FilterDatabaseDownloadThread thread( dbPath );
+   thread.Start();
+
+   while ( thread.IsActive() )
+   {
+      Module->ProcessEvents();
+      thread.Wait( 50 );
+   }
+
+   if ( thread.Succeeded() )
+   {
+      GUI->FilterDatabase_Status_Label.SetText(
+         "Database: " + String( thread.Count() ) + " filters (saved to " + dbPath + ")" );
+      Console().WriteLn( "Filter database download completed: " +
+                         String( thread.Count() ) + " filters." );
+   }
+   else
+   {
+      GUI->FilterDatabase_Status_Label.SetText( "<raw>Download failed. See the console.</raw>" );
+      Console().WriteLn( "Filter database download failed." );
+   }
+
+   GUI->DownloadFilters_PushButton.Enable();
 }
 
 // ----------------------------------------------------------------------------
@@ -679,11 +790,20 @@ AstroBinCSVGeneratorInterface::GUIData::GUIData( AstroBinCSVGeneratorInterface& 
    DownloadFilters_PushButton.SetToolTip( "<p>Download the AstroBin filter database from the AstroBin REST API.</p>" );
    DownloadFilters_PushButton.OnClick( (Button::click_event_handler)&AstroBinCSVGeneratorInterface::e_Download_Click, w );
 
+   FilterDatabase_Status_Label.SetTextAlignment( TextAlign::Left|TextAlign::VertCenter );
+   FilterDatabase_Status_Label.SetToolTip( "<p>Status of the local AstroBin filter database cache.</p>" );
+
    FilterDatabase_Sizer.SetSpacing( 4 );
    FilterDatabase_Sizer.Add( FilterDatabase_Label );
    FilterDatabase_Sizer.Add( FilterDatabase_Edit, 100 );
    FilterDatabase_Sizer.Add( FilterDatabase_Browse_PushButton );
    FilterDatabase_Sizer.Add( DownloadFilters_PushButton );
+
+   FilterDatabase_Status_Sizer.SetSpacing( 4 );
+   FilterDatabase_Status_Sizer.Add( FilterDatabase_Status_Label );
+
+   Filters_Section_Sizer.Add( FilterDatabase_Sizer );
+   Filters_Section_Sizer.Add( FilterDatabase_Status_Sizer );
 
    DefaultFilter_Label.SetText( "Default filter:" );
    DefaultFilter_Label.SetMinWidth( pathLabelWidth );

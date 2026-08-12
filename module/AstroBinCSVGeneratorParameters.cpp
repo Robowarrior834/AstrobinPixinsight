@@ -4,7 +4,7 @@
 //  / ____// /___ / /___   PixInsight Class Library
 // /_/     \____//_____/   PCL 2.10.4
 // ----------------------------------------------------------------------------
-// AstroBin CSV Generator Process Module Version 1.0.0
+// AstroBin CSV Generator Process Module Version 1.2.5
 // ----------------------------------------------------------------------------
 // AstroBinCSVGeneratorParameters.cpp - Generated 2026-08-12
 // ----------------------------------------------------------------------------
