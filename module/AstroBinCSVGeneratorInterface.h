@@ -34,7 +34,9 @@
 #include <pcl/PushButton.h>
 #include <pcl/SectionBar.h>
 #include <pcl/Sizer.h>
+#include <pcl/TreeBox.h>
 
+#include "AstroBinCSVGeneratorEngine.h"
 #include "AstroBinCSVGeneratorInstance.h"
 
 namespace pcl
@@ -73,11 +75,13 @@ private:
          SectionBar    InputFiles_SectionBar;
          Control       InputFiles_Section;
          VerticalSizer InputFiles_Section_Sizer;
-            HorizontalSizer InputDirectory_Sizer;
-               Label            InputDirectory_Label;
-               Edit             InputDirectory_Edit;
-               PushButton       InputDirectory_Browse_PushButton;
-            CheckBox          Recursive_CheckBox;
+            TreeBox           FileList_TreeBox;
+            HorizontalSizer FileListButtons_Sizer;
+               PushButton AddFiles_PushButton;
+               PushButton AddDirectory_PushButton;
+               PushButton RemoveSelected_PushButton;
+               PushButton ClearAll_PushButton;
+               PushButton SetFilter_PushButton;
             HorizontalSizer OutputDirectory_Sizer;
                Label            OutputDirectory_Label;
                Edit             OutputDirectory_Edit;
@@ -89,77 +93,36 @@ private:
                Label            OverrideFile_Label;
                Edit             OverrideFile_Edit;
                PushButton       OverrideFile_Browse_PushButton;
-
-         SectionBar    Site_SectionBar;
-         Control       Site_Section;
-         VerticalSizer Site_Section_Sizer;
-            HorizontalSizer SiteName_Sizer;
-               Label            SiteName_Label;
-               Edit             SiteName_Edit;
-            HorizontalSizer SiteCoordinates_Sizer;
-               NumericControl    SiteLatitude_NumericControl;
-               NumericControl    SiteLongitude_NumericControl;
-            HorizontalSizer SiteElevationSky_Sizer;
-               NumericControl    SiteElevation_NumericControl;
-               NumericControl    Bortle_NumericControl;
-            HorizontalSizer SiteSky_Sizer;
-               NumericControl    SQM_NumericControl;
-
-         SectionBar    Equipment_SectionBar;
-         Control       Equipment_Section;
-         VerticalSizer Equipment_Section_Sizer;
-            HorizontalSizer Optics_Sizer;
-               NumericControl    FocalLength_NumericControl;
-               NumericControl    PixelSize_NumericControl;
-            HorizontalSizer OpticsMisc_Sizer;
-               NumericControl    FocalRatio_NumericControl;
-               NumericControl    DefaultGain_NumericControl;
-            HorizontalSizer Camera_Sizer;
-               NumericControl    DefaultTemperature_NumericControl;
-
-         SectionBar    Sessions_SectionBar;
-         Control       Sessions_Section;
-         VerticalSizer Sessions_Section_Sizer;
-            NumericControl SessionGapHours_NumericControl;
-            CheckBox       ShiftOvernight_CheckBox;
-            CheckBox       UseObservingDate_CheckBox;
-
-         SectionBar    Filters_SectionBar;
-         Control       Filters_Section;
-         VerticalSizer Filters_Section_Sizer;
-             HorizontalSizer FilterDatabase_Sizer;
-                Label            FilterDatabase_Label;
-                Edit             FilterDatabase_Edit;
-                PushButton       FilterDatabase_Browse_PushButton;
-                PushButton       DownloadFilters_PushButton;
-             HorizontalSizer FilterDatabase_Status_Sizer;
-                Label            FilterDatabase_Status_Label;
-             HorizontalSizer DefaultFilter_Sizer;
-               Label            DefaultFilter_Label;
-               Edit             DefaultFilter_Edit;
-               CheckBox         UseDefaultFilter_CheckBox;
-            Label           FilterMap_Label;
-            Edit            FilterMap_Edit;
-
-         SectionBar    Overrides_SectionBar;
-         Control       Overrides_Section;
-         VerticalSizer Overrides_Section_Sizer;
-            Label   KeywordOverrides_Label;
-            Edit    KeywordOverrides_Edit;
+            HorizontalSizer Settings_Sizer;
+               PushButton Settings_PushButton;
    };
 
    GUIData* GUI = nullptr;
 
+   // Loaded files shown in the file list. Each entry stores the extracted
+   // frame metadata plus any per-file filter override set by the user.
+   std::vector<AstroBinCSVGeneratorEngine::FrameData> m_files;
+
    void UpdateControls();
-   void UpdateFilterDatabaseStatus();
    void LoadSettings();
    void SaveSettings() const;
 
+   void RebuildFileTree();
+   void SyncFileListToInstance();
+   void SyncFileListFromInstance();
+   void ProcessFiles( const StringList& paths );
+   void SetFilterForSelected();
+   void OpenSettings();
+   AstroBinCSVGeneratorEngine CreateEngine() const;
+
    void e_EditCompleted( Edit& sender );
-   void e_CheckBox_Click( Button& sender, bool checked );
-   void e_ValueUpdated( NumericEdit& sender, double value );
    void e_Browse_Click( Button& sender, bool checked );
-   void e_Download_Click( Button& sender, bool checked );
+   void e_Settings_Click( Button& sender, bool checked );
+   void e_AddFiles_Click( Button& sender, bool checked );
+   void e_AddDirectory_Click( Button& sender, bool checked );
+   void e_RemoveSelected_Click( Button& sender, bool checked );
+   void e_ClearAll_Click( Button& sender, bool checked );
+   void e_SetFilter_Click( Button& sender, bool checked );
 
    friend struct GUIData;
 };

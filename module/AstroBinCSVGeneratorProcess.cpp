@@ -67,6 +67,7 @@ AstroBinCSVGeneratorProcess::AstroBinCSVGeneratorProcess()
    new UseDefaultFilterParameter( this );
    new FilterMapParameter( this );
    new FilterDatabasePathParameter( this );
+   new FileListJSONParameter( this );
 }
 
 // ----------------------------------------------------------------------------

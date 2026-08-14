@@ -28,6 +28,7 @@
 #include <pcl/Console.h>
 #include <pcl/Control.h>
 #include <pcl/File.h>
+#include <pcl/MetaModule.h>
 #include <pcl/NetworkTransfer.h>
 
 #include <algorithm>
@@ -1244,6 +1245,11 @@ bool AstroBinCSVGeneratorEngine::DownloadFilterDatabase()
       if ( totalCount > 0 && int( all.size() ) >= totalCount )
          break;
       page++;
+
+      // Keep the GUI responsive during long downloads (matches the JS script's
+      // CoreApplication.processEvents() between pages). On a worker thread this
+      // also lets the user abort the process.
+      Module->ProcessEvents();
    }
 
    m_filters = all;
@@ -1720,6 +1726,23 @@ AstroBinCSVGeneratorEngine::FrameData AstroBinCSVGeneratorEngine::ExtractFrameDa
 }
 
 // ----------------------------------------------------------------------------
+
+AstroBinCSVGeneratorEngine::FrameData AstroBinCSVGeneratorEngine::ExtractFrame( const String& filePath ) const
+{
+   std::map<std::string,ABCGJSON::Value> keywords;
+
+   String ext = File::ExtractExtension( filePath );
+   ext.ToLowercase();
+
+   if ( ext == ".xisf" )
+      ReadXISFHeaders( filePath, keywords );
+   else if ( ext == ".fits" || ext == ".fit" || ext == ".fts" )
+      ReadFITSHeaders( filePath, keywords );
+
+   return ExtractFrameData( keywords, filePath );
+}
+
+// ----------------------------------------------------------------------------
 // Session detection
 // ----------------------------------------------------------------------------
 
@@ -1873,23 +1896,33 @@ AstroBinCSVGeneratorEngine::AggregateFrames( const std::vector<FrameData>& frame
    }
 
    // Sort by session date, then filter, then gain (stable, like V8's TimSort).
-   std::stable_sort( results.begin(), results.end(),
-      []( const AggregateRow& a, const AggregateRow& b )
+   std::vector<size_t> idx( results.size() );
+   for ( size_t i = 0; i < idx.size(); i++ )
+      idx[i] = i;
+   std::stable_sort( idx.begin(), idx.end(),
+      [&results]( size_t a, size_t b )
       {
-         if ( a.sessionDate < b.sessionDate )
+         const AggregateRow& x = results[a];
+         const AggregateRow& y = results[b];
+         if ( x.sessionDate < y.sessionDate )
             return true;
-         if ( b.sessionDate < a.sessionDate )
+         if ( y.sessionDate < x.sessionDate )
             return false;
-         if ( a.filter < b.filter )
+         if ( x.filter < y.filter )
             return true;
-         if ( b.filter < a.filter )
+         if ( y.filter < x.filter )
             return false;
-         if ( a.gain < b.gain )
+         if ( x.gain < y.gain )
             return true;
-         if ( b.gain < a.gain )
+         if ( y.gain < x.gain )
             return false;
          return false;
       } );
+   std::vector<AggregateRow> sortedResults;
+   sortedResults.reserve( results.size() );
+   for ( size_t i : idx )
+      sortedResults.push_back( results[i] );
+   results = std::move( sortedResults );
 
    return results;
 }
@@ -1999,8 +2032,16 @@ bool AstroBinCSVGeneratorEngine::CollectFiles( const String& dir, bool recursive
             pending.push_back( d + "/" + sd );
    }
 
-   std::sort( found.begin(), found.end() );
-   files = std::move( found );
+   std::vector<size_t> idx( found.size() );
+   for ( size_t i = 0; i < idx.size(); i++ )
+      idx[i] = i;
+   std::sort( idx.begin(), idx.end(),
+      [&found]( size_t a, size_t b ) { return found[a] < found[b]; } );
+   std::vector<String> sorted;
+   sorted.reserve( found.size() );
+   for ( size_t i : idx )
+      sorted.push_back( found[i] );
+   files = std::move( sorted );
    return true;
 }
 
@@ -2069,7 +2110,7 @@ bool AstroBinCSVGeneratorEngine::WriteCSV( const std::vector<AggregateRow>& rows
 
 bool AstroBinCSVGeneratorEngine::Generate( const String& inputDirectory,
    const String& outputDirectory, const String& outputFileName,
-   bool recursive, const String& overrideFilePath )
+   bool recursive, const String& overrideFilePath, const String& fileListJSON )
 {
    Configure();
 
@@ -2077,8 +2118,53 @@ bool AstroBinCSVGeneratorEngine::Generate( const String& inputDirectory,
    // downloaded by the process instance before calling Generate().
    LoadFilterDatabase();
 
+   // Optional per-file filter overrides attached to an explicit file list.
+   // Each entry: { path, filterId, filterLabel }.
+   struct InlineOverride
+   {
+      String path;
+      String id;
+      String label;
+   };
+
+   std::vector<InlineOverride> inlineOverrides;
+   bool hasFileList = !fileListJSON.IsEmpty();
+
    std::vector<String> files;
-   CollectFiles( inputDirectory, recursive, files );
+   if ( hasFileList )
+   {
+      ABCGJSON::Value root;
+      std::string text = fileListJSON.ToIsoString().c_str();
+      if ( ABCGJSON::Parse( text, root ) && root.IsArray() )
+      {
+         for ( const ABCGJSON::Value& el : root.arr )
+         {
+            if ( !el.IsObject() )
+               continue;
+
+            InlineOverride io;
+            const ABCGJSON::Value* p = el.Find( "path" );
+            if ( p != nullptr && p->type == ABCGJSON::StringType )
+               io.path = String( p->str.c_str() );
+            if ( io.path.IsEmpty() )
+               continue;
+
+            const ABCGJSON::Value* id = el.Find( "filterId" );
+            if ( id != nullptr && id->type == ABCGJSON::StringType )
+               io.id = String( id->str.c_str() );
+            const ABCGJSON::Value* label = el.Find( "filterLabel" );
+            if ( label != nullptr && label->type == ABCGJSON::StringType )
+               io.label = String( label->str.c_str() );
+
+            files.push_back( io.path );
+            inlineOverrides.push_back( io );
+         }
+      }
+   }
+   else
+   {
+      CollectFiles( inputDirectory, recursive, files );
+   }
 
    std::vector< std::pair<String, std::pair<String,String> > > overrides;
    if ( !overrideFilePath.IsEmpty() )
@@ -2111,20 +2197,40 @@ bool AstroBinCSVGeneratorEngine::Generate( const String& inputDirectory,
 
       FrameData frame = ExtractFrameData( keywords, filePath );
 
-      // Apply a per-file filter override if one exists in the override file.
-      for ( const auto& ov : overrides )
-         if ( ov.first == frame.fileName )
-         {
-            if ( ov.second.second.IsEmpty() )
-               frame.filter = ov.second.first; // blank id -> normal mapping
-            else
+      if ( hasFileList )
+      {
+         // Apply the per-file filter override attached to this file list entry.
+         for ( const auto& io : inlineOverrides )
+            if ( io.path == filePath )
             {
-               frame.hasFilterOverride = true;
-               frame.filterOverrideId = ov.second.second;
-               frame.filterOverrideLabel = ov.second.first;
+               if ( io.id.IsEmpty() )
+                  frame.filter = io.label; // blank id -> normal mapping
+               else
+               {
+                  frame.hasFilterOverride = true;
+                  frame.filterOverrideId = io.id;
+                  frame.filterOverrideLabel = io.label;
+               }
+               break;
             }
-            break;
-         }
+      }
+      else
+      {
+         // Apply a per-file filter override if one exists in the override file.
+         for ( const auto& ov : overrides )
+            if ( ov.first == frame.fileName )
+            {
+               if ( ov.second.second.IsEmpty() )
+                  frame.filter = ov.second.first; // blank id -> normal mapping
+               else
+               {
+                  frame.hasFilterOverride = true;
+                  frame.filterOverrideId = ov.second.second;
+                  frame.filterOverrideLabel = ov.second.first;
+               }
+               break;
+            }
+      }
 
       frames.push_back( frame );
    }

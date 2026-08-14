@@ -414,6 +414,21 @@ extern FilterDatabasePathParameter* TheFilterDatabasePathParameter;
 
 // ----------------------------------------------------------------------------
 
+class FileListJSONParameter : public MetaString
+{
+public:
+
+   FileListJSONParameter( MetaProcess* );
+
+   IsoString Id() const override;
+   String DefaultValue() const override;
+   String Description() const override;
+};
+
+extern FileListJSONParameter* TheFileListJSONParameter;
+
+// ----------------------------------------------------------------------------
+
 PCL_END_LOCAL
 
 } // pcl

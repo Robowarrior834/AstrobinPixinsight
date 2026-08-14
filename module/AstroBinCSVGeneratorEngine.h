@@ -122,6 +122,19 @@ class AstroBinCSVGeneratorEngine
 public:
 
    // -------------------------------------------------------------------------
+   // Filter database entry.
+   // -------------------------------------------------------------------------
+
+   struct FilterEntry
+   {
+      String          id;               // AstroBin numeric ID (as string)
+      String          name;             // display name
+      String          searchFriendlyName;// searchable name
+      String          brandName;        // manufacturer
+      ABCGJSON::Value raw;              // full JSON object as fetched/saved
+   };
+
+   // -------------------------------------------------------------------------
    // Structured frame data (equivalent to the JS extractFrameData() result).
    // -------------------------------------------------------------------------
 
@@ -237,19 +250,30 @@ public:
    String FilterLastUpdated() const { return m_lastUpdated; }
    String ResolveDatabasePath() const;
 
+   // Returns the current filter database entries (used by the GUI to build
+   // the filter picker list).
+   const std::vector<FilterEntry>& Filters() const { return m_filters; }
+
    // Returns the current UTC time as an ISO 8601 string with milliseconds,
    // equivalent to JavaScript's new Date().toISOString().
    static String NowIsoString();
    // -------------------------------------------------------------------------
    // Main entry point: scans input directory, extracts frames, aggregates and
    // writes the acquisition CSV. Returns true on success.
+   //
+   // If fileListJSON is a non-empty JSON array of {path, filterId, filterLabel}
+   // objects, those files are processed instead of scanning inputDirectory,
+   // and each entry's filterId/filterLabel is applied as a per-file filter
+   // override. Otherwise the input directory is scanned and the override
+   // file (if any) is applied by file name, as before.
    // -------------------------------------------------------------------------
 
    bool Generate( const String& inputDirectory,
                   const String& outputDirectory,
                   const String& outputFileName,
                   bool recursive,
-                  const String& overrideFilePath );
+                  const String& overrideFilePath,
+                  const String& fileListJSON = String() );
 
    // Parses the configured JSON documents and populates internal tables.
    void Configure();
@@ -263,19 +287,6 @@ public:
 
 private:
 
-   // -------------------------------------------------------------------------
-   // Filter database entry.
-   // -------------------------------------------------------------------------
-
-   struct FilterEntry
-   {
-      String          id;               // AstroBin numeric ID (as string)
-      String          name;             // display name
-      String          searchFriendlyName;// searchable name
-      String          brandName;        // manufacturer
-      ABCGJSON::Value raw;              // full JSON object as fetched/saved
-   };
-
    std::vector<FilterEntry> m_filters;
    String m_lastUpdated;
    String m_dbPath;
@@ -287,6 +298,8 @@ private:
    std::vector< std::pair<String,String> > m_filterMap;
    // Configured keyword overrides: ordered (canonical -> source) pairs.
    std::vector< std::pair<String,String> > m_keywordOverrides;
+
+public:
 
    // -------------------------------------------------------------------------
    // File/header scanning
@@ -306,12 +319,18 @@ private:
    // empty string on failure. Mirrors the JS httpGet() helper.
    static String HttpGet( const String& url );
 
+public:
+
    // -------------------------------------------------------------------------
    // Frame extraction
    // -------------------------------------------------------------------------
 
    FrameData ExtractFrameData( const std::map<std::string,ABCGJSON::Value>& rawKeywords,
                                const String& filePath ) const;
+
+   // Reads the FITS/XISF headers of a single file and returns its extracted
+   // frame data. Used by the process interface to build the file list view.
+   FrameData ExtractFrame( const String& filePath ) const;
 
    // -------------------------------------------------------------------------
    // Session detection + aggregation

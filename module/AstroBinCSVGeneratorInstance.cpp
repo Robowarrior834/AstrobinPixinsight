@@ -63,6 +63,7 @@ AstroBinCSVGeneratorInstance::AstroBinCSVGeneratorInstance( const MetaProcess* m
    , p_useDefaultFilter( TheUseDefaultFilterParameter->DefaultValue() )
    , p_filterMap( TheFilterMapParameter->DefaultValue() )
    , p_filterDatabasePath( TheFilterDatabasePathParameter->DefaultValue() )
+   , p_fileList( TheFileListJSONParameter->DefaultValue() )
 {
 }
 
@@ -106,6 +107,7 @@ void AstroBinCSVGeneratorInstance::Assign( const ProcessImplementation& p )
       p_useDefaultFilter   = x->p_useDefaultFilter;
       p_filterMap          = x->p_filterMap;
       p_filterDatabasePath = x->p_filterDatabasePath;
+      p_fileList           = x->p_fileList;
    }
 }
 
@@ -165,7 +167,7 @@ bool AstroBinCSVGeneratorInstance::ExecuteGlobal()
       engine.DownloadFilterDatabase();
 
    if ( !engine.Generate( p_inputDirectory, p_outputDirectory, p_outputFileName,
-                          p_recursive, p_overrideFilePath ) )
+                          p_recursive, p_overrideFilePath, p_fileList ) )
    {
       c.CriticalLn( "Error generating CSV file." );
       return false;
@@ -249,12 +251,14 @@ void* AstroBinCSVGeneratorInstance::LockParameter( const MetaParameter* p, size_
       return &p_defaultFilter;
    if ( p == TheUseDefaultFilterParameter )
       return &p_useDefaultFilter;
-   if ( p == TheFilterMapParameter )
-      return &p_filterMap;
-   if ( p == TheFilterDatabasePathParameter )
-      return &p_filterDatabasePath;
+    if ( p == TheFilterMapParameter )
+       return &p_filterMap;
+    if ( p == TheFilterDatabasePathParameter )
+       return &p_filterDatabasePath;
+    if ( p == TheFileListJSONParameter )
+       return &p_fileList;
 
-   return nullptr;
+    return nullptr;
 }
 
 // ----------------------------------------------------------------------------

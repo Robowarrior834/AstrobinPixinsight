@@ -77,9 +77,13 @@ private:
    pcl_bool p_useDefaultFilter;  // enable default filter fallback
    String   p_filterMap;         // JSON object mapping filter names to AstroBin IDs
    String   p_filterDatabasePath;// path to the filter database JSON cache
+   String   p_fileList;          // JSON array of {path, filterId, filterLabel}; when
+                                 // non-empty, these files are processed instead of
+                                 // scanning p_inputDirectory
 
    friend class AstroBinCSVGeneratorProcess;
    friend class AstroBinCSVGeneratorInterface;
+   friend class ABCGSettingsDialog;
 };
 
 // ----------------------------------------------------------------------------

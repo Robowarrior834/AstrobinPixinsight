@@ -82,6 +82,7 @@ DefaultFilterParameter*    TheDefaultFilterParameter    = nullptr;
 UseDefaultFilterParameter* TheUseDefaultFilterParameter = nullptr;
 FilterMapParameter*        TheFilterMapParameter        = nullptr;
 FilterDatabasePathParameter* TheFilterDatabasePathParameter = nullptr;
+FileListJSONParameter*     TheFileListJSONParameter     = nullptr;
 
 // ----------------------------------------------------------------------------
 // Input / Output parameters
@@ -702,6 +703,32 @@ String FilterDatabasePathParameter::Description() const
    return "Path to the AstroBin filter database JSON cache file. If empty, the "
           "default path PixInsight/AstroBinFilters.json in the user's home "
           "directory is used.";
+}
+
+// ----------------------------------------------------------------------------
+
+FileListJSONParameter::FileListJSONParameter( MetaProcess* P ) : MetaString( P )
+{
+   TheFileListJSONParameter = this;
+}
+
+IsoString FileListJSONParameter::Id() const
+{
+   return "fileListJSON";
+}
+
+String FileListJSONParameter::DefaultValue() const
+{
+   return String( "[]" );
+}
+
+String FileListJSONParameter::Description() const
+{
+   return "JSON array of files to process. Each element is an object with a "
+          "\"path\" property and optional \"filterId\" and \"filterLabel\" "
+          "properties. When non-empty, the listed files are processed instead "
+          "of scanning the input directory, and each file's filter override is "
+          "applied to its CSV row.";
 }
 
 // ----------------------------------------------------------------------------
