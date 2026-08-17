@@ -1,5 +1,5 @@
 /*
- * AstroBin CSV Generator for PixInsight v1.2.4
+ * AstroBin CSV Generator for PixInsight v1.2.7
  *
  * Reads FITS/XISF file headers and generates AstroBin-compatible
  * acquisition.csv files for bulk upload.
@@ -17,11 +17,11 @@
 #engine v8
 
 #define TITLE "AstroBin CSV Generator"
-#define VERSION "1.2.5"
+#define VERSION "1.2.7"
 
 #feature-id AstroBinCSVGenerator : Utilities > AstroBin CSV Generator
 
-#feature-info <b>AstroBin CSV Generator v1.2.4</b><br/>\
+#feature-info <b>AstroBin CSV Generator v1.2.7</b><br/>\
    <br/>\
    Reads FITS/XISF file headers and generates AstroBin-compatible \
    acquisition.csv files for bulk upload.<br/>\
@@ -637,12 +637,12 @@ function AstroBinSettings() {
       if (n.length === 0) return "";
 
       // Pass 1: exact match on user's custom filter map
-      if (n in this.filterMap) return this.filterMap[n];
+      if (n in this.filterMap) return String(this.filterMap[n]);
 
       // Pass 2: case-insensitive match on custom filter map
       var lower = n.toLowerCase();
       for (var key in this.filterMap) {
-         if (key.toLowerCase() === lower) return this.filterMap[key];
+         if (key.toLowerCase() === lower) return String(this.filterMap[key]);
       }
 
       // Pass 3: search the downloaded AstroBin filter database
@@ -658,7 +658,7 @@ function AstroBinSettings() {
       // Pass 4: use default filter if enabled
       if (this.useDefaultFilter && this.defaultFilter.length > 0) {
          console.writeln("  Filter '" + n + "' -> using default: " + this.defaultFilter);
-         return this.defaultFilter;
+         return String(this.defaultFilter);
       }
 
       // No match found — return raw name (will cause CSV import issue, but visible to user)
@@ -1291,7 +1291,7 @@ function aggregateFrames(frames) {
 
       agg.sessionDate = group[0].sessionDate;
       agg.filter = group[0].filterOverride ? group[0].filterOverride.label : group[0].filter;
-      agg.filterCode = group[0].filterOverride ? group[0].filterOverride.id : settings.mapFilter(group[0].filter);
+      agg.filterCode = String(group[0].filterOverride ? group[0].filterOverride.id : settings.mapFilter(group[0].filter));
       agg.gain = group[0].gain;
       agg.xbinning = group[0].xbinning;
       agg.exposure = group[0].exposure;
@@ -2239,6 +2239,10 @@ var MainDialog = class extends Dialog {
 
    /**
     * Opens a directory picker and recursively loads all FITS/XISF files found.
+    *
+    * Searches the selected directory tree (recursively) for files whose
+    * extension is fits, fit, fts, or xisf. Extension matching is
+    * case-insensitive, so uppercase variants such as ".FIT" are found too.
     */
    addDirectory() {
       var dlg = new GetDirectoryDialog;
@@ -2247,11 +2251,14 @@ var MainDialog = class extends Dialog {
       if (dlg.execute()) {
          var dir = dlg.directoryPath;
          var files = [];
-         var extensions = ["*.fits", "*.fit", "*.fts", "*.xisf"];
 
-         for (var e = 0; e < extensions.length; e++) {
-            var found = File.searchDirectory(dir + "/" + extensions[e], false);
-            for (var i = 0; i < found.length; i++) {
+         // Recursive search for all files; filter by extension case-insensitively
+         // in JS. PCL wildcard matching (File.searchDirectory) is case-sensitive,
+         // so "*.fit" would miss ".FIT"-named files.
+         var found = File.searchDirectory(dir + "/*", true);
+         for (var i = 0; i < found.length; i++) {
+            var ext = File.extractExtension(found[i]).toLowerCase();
+            if (ext === ".fits" || ext === ".fit" || ext === ".fts" || ext === ".xisf") {
                files.push(found[i]);
             }
          }
@@ -2603,16 +2610,21 @@ var MainDialog = class extends Dialog {
       for (var di = 0; di < fileFrames.length; di++) {
          var df = fileFrames[di];
          if (df.filterOverride != null) {
-            console.writeln(format("[DEBUG] frame '%s' has filterOverride: id=%s, label=%s", df.fileName, df.filterOverride.id, df.filterOverride.label));
+            console.writeln(format("[DEBUG] frame '%s' has filterOverride: id=%s, label=%s", df.fileName, String(df.filterOverride.id), df.filterOverride.label));
          }
       }
       console.writeln("date,filter,number,duration,binning,gain,sensorCooling,fNumber,bortle,meanSqm,meanFwhm,temperature");
       for (var i = 0; i < aggregated.length; i++) {
          var a = aggregated[i];
-         console.writeln(format("%s,%s,%d,%.1f,%d,%d,%.0f,%.1f,%d,%.2f,%.2f,%.1f",
-            a.sessionDate, a.filterCode, a.number, a.exposure,
-            a.xbinning, a.gain, a.sensorCooling, a.fNumber,
-            a.bortle, a.meanSqm, a.meanFwhm, a.temperature));
+         console.writeln([
+            a.sessionDate, a.filterCode, a.number,
+            Math.round(a.exposure * 10) / 10,
+            a.xbinning, a.gain, Math.round(a.sensorCooling),
+            Math.round(a.fNumber * 10) / 10, Math.round(a.bortle),
+            Math.round(a.meanSqm * 100) / 100,
+            Math.round(a.meanFwhm * 100) / 100,
+            Math.round(a.temperature * 10) / 10
+         ].join(","));
       }
       console.hide();
    }
@@ -2676,11 +2688,16 @@ var MainDialog = class extends Dialog {
          console.writeln(csvText);
          for (var i = 0; i < aggregated.length; i++) {
             var a = aggregated[i];
-            console.writeln(format("%s,%s,%d,%.1f,%d,%d,%.0f,%.1f,%d,%.2f,%.2f,%.1f",
-               a.sessionDate, a.filterCode, a.number, a.exposure,
-               a.xbinning, a.gain, a.sensorCooling, a.fNumber,
-               0, 0, 0, 0,
-               a.bortle, a.meanSqm, a.meanFwhm, a.temperature));
+            console.writeln([
+               a.sessionDate, a.filterCode, a.number,
+               Math.round(a.exposure * 10) / 10,
+               a.xbinning, a.gain, Math.round(a.sensorCooling),
+               Math.round(a.fNumber * 10) / 10, 0, 0, 0, 0,
+               Math.round(a.bortle),
+               Math.round(a.meanSqm * 100) / 100,
+               Math.round(a.meanFwhm * 100) / 100,
+               Math.round(a.temperature * 10) / 10
+            ].join(","));
          }
          console.writeln("<b>=== End CSV ===</b>");
          console.writeln();
