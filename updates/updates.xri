@@ -10,12 +10,12 @@
          overnight shifting, and FITS/XISF header extraction with keyword overrides.
       </p>
    </description>
-   <platform os="all" arch="noarch" version="1.9.4:9.99.99">
-      <package fileName="astrobin-1.2.7.zip" sha1="469b39bf2483504548ecc9db9cc9d4458d169857" type="script" releaseDate="20260817">
-         <title>AstroBin CSV Generator <v1 class="2 7"/>
+   <platform os="all" arch="noarch" version="1.9.5:9.99.99">
+      <package fileName="astrobin-1.2.8.zip" sha1="48d09bb077b5afadc20313b7d204c21992f1040d" type="script" releaseDate="20260927">
+         <title>AstroBin CSV Generator <v1 class="2 8"/>
          </title>
          <description>
-            <p>Version 1.2.7 | Attempt to fix type-strict format()</p>
+            <p>Version 1.2.8 | Requires PixInsight 1.9.5 or later</p>
             <p>Reads FITS/XISF file headers and generates AstroBin-compatible acquisition.csv files for bulk upload.</p>
             <p>Features: automatic filter-to-ID mapping, default filter fallback, session detection and overnight shifting, FITS/XISF header extraction with keyword overrides.</p>
             <p>Based on the AstroBin Upload Utility Python tool.</p>
@@ -23,4 +23,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="JamiesAstroPhotos" timestamp="2026-08-17T14:23:09.361Z" encoding="Base64">BwByCU4phHWXJ4/aJDanZW6geD9h+LPnzDTJBkcUcMx1SoEPt4v3vQXGbQecXmIJR5t5fLKBBMi0fDQdtPAXDw==</Signature>
+<Signature developerId="JamiesAstroPhotos" timestamp="2026-09-27T23:49:56.946Z" encoding="Base64">xExi72X+HgRp0gEJdLsSA0RJMwlKQ02FFpxDgzwkRCgCqv2rxpA2iZdvNWpdHmdiFhkkYdJg5LJCaXjBA+VyCA==</Signature>

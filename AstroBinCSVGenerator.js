@@ -1,5 +1,5 @@
 /*
- * AstroBin CSV Generator for PixInsight v1.2.7
+ * AstroBin CSV Generator for PixInsight v1.2.8
  *
  * Reads FITS/XISF file headers and generates AstroBin-compatible
  * acquisition.csv files for bulk upload.
@@ -11,17 +11,17 @@
  * - FITS/XISF header extraction with keyword overrides
  *
  * Based on the AstroBin Upload Utility Python tool.
- * Requires PixInsight 1.9.4 Lockhart or later (V8 runtime).
+ * Requires PixInsight 1.9.5 or later (V8 runtime).
  */
 
 #engine v8
 
 #define TITLE "AstroBin CSV Generator"
-#define VERSION "1.2.7"
+#define VERSION "1.2.8"
 
 #feature-id AstroBinCSVGenerator : Utilities > AstroBin CSV Generator
 
-#feature-info <b>AstroBin CSV Generator v1.2.7</b><br/>\
+#feature-info <b>AstroBin CSV Generator v1.2.8</b><br/>\
    <br/>\
    Reads FITS/XISF file headers and generates AstroBin-compatible \
    acquisition.csv files for bulk upload.<br/>\
@@ -34,7 +34,7 @@
    <br/>\
    Based on the AstroBin Upload Utility Python tool.
 
-CoreApplication.ensureMinimumVersion(1, 9, 4);
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 // =============================================================================
 // Constants
