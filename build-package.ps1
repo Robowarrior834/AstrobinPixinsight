@@ -16,7 +16,7 @@
 $ErrorActionPreference = "Stop"
 
 # Zip package file name to create (keep in sync with updates\updates.xri)
-$PackageFile = "astrobin-1.2.8.zip"
+$PackageFile = "astrobin-1.2.9.zip"
 
 # Extract version from the package file name (e.g. astrobin-1.2.3.zip)
 $VersionMatch = [regex]::Match($PackageFile, '-(\d+\.\d+\.\d+)\.zip$')
@@ -49,6 +49,9 @@ $SignatureFile = "AstroBinCSVGenerator.xsgn"
 if (Test-Path $SignatureFile) {
     Write-Host "Copying $SignatureFile..." -ForegroundColor Yellow
     Copy-Item $SignatureFile -Destination $PackageDir
+    if ((Get-Item $SignatureFile).LastWriteTimeUtc -lt (Get-Item $SourceScript).LastWriteTimeUtc) {
+        Write-Warning "$SignatureFile is older than $SourceScript - the signature is stale. Re-sign the script in PixInsight before publishing this package."
+    }
 }
 else {
     Write-Warning "$SignatureFile not found - script will be packaged unsigned"
@@ -62,10 +65,17 @@ if (Test-Path $PackagePath) {
 }
 Compress-Archive -Path "$BuildDir\src" -DestinationPath $PackagePath -CompressionLevel Optimal
 
-# Calculate SHA1 checksum
+# Calculate SHA1 checksum (via .NET for compatibility with Windows PowerShell 5.1
+# installations where Get-FileHash is unavailable)
 Write-Host "Calculating SHA1 checksum..." -ForegroundColor Yellow
-$Hash = Get-FileHash -Path $PackagePath -Algorithm SHA1
-$Sha1 = $Hash.Hash.ToLower()
+$Stream = [System.IO.File]::OpenRead((Resolve-Path $PackagePath))
+try {
+    $Hasher = [System.Security.Cryptography.SHA1]::Create()
+    $Sha1 = ([System.BitConverter]::ToString($Hasher.ComputeHash($Stream)) -replace '-', '').ToLower()
+}
+finally {
+    $Stream.Dispose()
+}
 
 Write-Host ""
 Write-Host "Package: $PackagePath" -ForegroundColor Green

@@ -1,5 +1,5 @@
 /*
- * AstroBin CSV Generator for PixInsight v1.2.8
+ * AstroBin CSV Generator for PixInsight v1.2.9
  *
  * Reads FITS/XISF file headers and generates AstroBin-compatible
  * acquisition.csv files for bulk upload.
@@ -17,11 +17,11 @@
 #engine v8
 
 #define TITLE "AstroBin CSV Generator"
-#define VERSION "1.2.8"
+#define VERSION "1.2.9"
 
 #feature-id AstroBinCSVGenerator : Utilities > AstroBin CSV Generator
 
-#feature-info <b>AstroBin CSV Generator v1.2.8</b><br/>\
+#feature-info <b>AstroBin CSV Generator v1.2.9</b><br/>\
    <br/>\
    Reads FITS/XISF file headers and generates AstroBin-compatible \
    acquisition.csv files for bulk upload.<br/>\
@@ -214,8 +214,9 @@ function writeFileUtf8(filePath, text) {
 /**
  * Performs an HTTP GET request and returns the response body as a string.
  *
- * Uses PixInsight's NetworkTransfer API with a browser-like User-Agent
- * header to avoid 403 responses from servers that block non-browser clients.
+ * Uses PixInsight's NetworkTransfer API. The User-Agent header identifies the
+ * core application via CoreApplication.agentName (CPD rule 5.5), followed by
+ * this script's name and version.
  *
  * @param {string} url - The URL to fetch.
  * @returns {string|null} The response body text, or null if the request failed.
@@ -226,7 +227,7 @@ function httpGet(url) {
 
    nt.setURL(url);
    nt.setCustomHTTPHeaders([
-      "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "User-Agent: " + CoreApplication.agentName + " AstroBinCSVGenerator/" + VERSION,
       "Accept: application/json"
    ]);
 
